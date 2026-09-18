@@ -1,0 +1,62 @@
+baseURL = 'https://xianv0031.github.io/blog/'
+locale = 'zh-cn'
+defaultContentLanguage = 'zh-cn'
+title = '境外 GBB/AEG 简报'
+theme = 'PaperMod'
+paginate = 10
+enableRobotsTXT = true
+hasCJKLanguage = true
+
+[params]
+  description = '每日自动采集境外（Reddit 等）GBB/AEG 资讯，排除全部国内平台'
+  author = 'XIANV0031'
+  ShowReadingTime = true
+  ShowShareButtons = false
+  ShowPostNavLinks = true
+  ShowBreadCrumbs = true
+  ShowCodeCopyButtons = true
+  ShowToc = true
+  TocOpen = false
+  defaultTheme = 'dark'
+  disableThemeToggle = false
+  DateFormat = '2006-01-02'
+
+  [params.homeInfoParams]
+    Title = '境外 GBB/AEG 简报'
+    Content = '''
+只采集境外信源（Reddit、YouTube、境外行业媒体等），
+**完全排除国内平台**。每日自动更新。
+'''
+
+  [[params.socialIcons]]
+    name = 'github'
+    url = 'https://github.com/XIANV0031'
+
+[menu]
+  [[menu.main]]
+    name = '首页'
+    url = '/'
+    weight = 10
+  [[menu.main]]
+    name = '归档'
+    url = '/archives/'
+    weight = 20
+  [[menu.main]]
+    name = '标签'
+    url = '/tags/'
+    weight = 30
+  [[menu.main]]
+    name = '搜索'
+    url = '/search/'
+    weight = 40
+
+[outputs]
+  home = ['HTML', 'RSS', 'JSON']
+
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
+  [markup.highlight]
+    noClasses = false
+    style = 'monokai'

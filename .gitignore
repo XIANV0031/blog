@@ -1,0 +1,8 @@
+# Hugo 构建产物（由 Actions 生成，不提交）
+public/
+resources/_gen/
+.hugo_build.lock
+
+# 系统文件
+.DS_Store
+Thumbs.db
