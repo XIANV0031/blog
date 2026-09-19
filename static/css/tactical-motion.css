@@ -586,9 +586,12 @@ body::after {
 /* ---- 旋转唱片 ---- */
 .player-disc {
   position: relative;
-  flex: 0 0 104px;
-  width: 104px;
-  height: 104px;
+  flex: 0 0 108px;
+  width: 108px;
+  height: 108px;
+  margin-top: 6px;
+  /* 给唱臂枢轴留出溢出空间，避免被 body 的溢出裁掉 */
+  overflow: visible;
 }
 .disc-platter {
   width: 100%;
@@ -637,28 +640,29 @@ body::after {
 /* 唱臂：枢轴固定在唱片右上角外侧，播放时落下搭在盘面 */
 .disc-tonearm {
   position: absolute;
-  right: 2px;
-  top: -3px;
+  right: -7px;
+  top: -9px;
   width: 3px;
-  height: 40px;
+  height: 44px;
   background: linear-gradient(180deg, #9b998c, #4a4941);
   border-radius: 2px;
   transform-origin: top center;
-  transform: rotate(38deg);
+  transform: rotate(34deg);
   transition: transform 0.7s var(--ease-out);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
   z-index: 2;
   pointer-events: none;
 }
 .disc-tonearm::before {
-  /* 枢轴底座 */
+  /* 枢轴底座：置于唱片外，避免压到盘沿 */
   content: '';
   position: absolute;
-  left: -3px; top: -3px;
-  width: 9px; height: 9px;
+  left: -4px; top: -4px;
+  width: 11px; height: 11px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 32%, #b0ae9f, #3a3931);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  background: radial-gradient(circle at 35% 32%, #b8b6a6, #3a3931);
+  border: 1px solid rgba(217, 164, 65, 0.5);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
 }
 .disc-tonearm::after {
   /* 唱针头 */
@@ -670,7 +674,7 @@ body::after {
   border-radius: 1px;
   box-shadow: 0 0 7px rgba(217, 164, 65, 0.7);
 }
-.player-disc.is-spinning .disc-tonearm { transform: rotate(16deg); }
+.player-disc.is-spinning .disc-tonearm { transform: rotate(15deg); }
 
 /* ---- 右侧控制区 ---- */
 .player-main {

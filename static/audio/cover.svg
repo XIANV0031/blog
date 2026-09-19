@@ -36,10 +36,11 @@
   <circle cx="100" cy="100" r="52" fill="url(#hub)" stroke="#d9a441" stroke-width="1.8"/>
   <circle cx="100" cy="100" r="43" fill="none" stroke="#7d8c5c" stroke-width="1" opacity=".75" stroke-dasharray="3 4"/>
 
-  <path d="M100 64 L136 100 L100 136 L64 100 Z" fill="url(#am)" opacity=".95"/>
-  <path d="M100 76 L124 100 L100 124 L76 100 Z" fill="#141d17" opacity=".6"/>
-  <path d="M100 88 L112 100 L100 112 L88 100 Z" fill="url(#am)" opacity=".85"/>
+  <!-- 菱形徽记：纵向顶点拉长、横向收窄，才呈现菱形而非正方形 -->
+  <path d="M100 58 L130 100 L100 142 L70 100 Z" fill="url(#am)" opacity=".95"/>
+  <path d="M100 72 L118 100 L100 128 L82 100 Z" fill="#141d17" opacity=".62"/>
+  <path d="M100 86 L109 100 L100 114 L91 100 Z" fill="url(#am)" opacity=".9"/>
 
-  <circle cx="100" cy="100" r="9" fill="#0b110d" stroke="#d9a441" stroke-width="1.8"/>
-  <circle cx="100" cy="100" r="3" fill="#e9d9b6" opacity=".9"/>
+  <circle cx="100" cy="100" r="8.5" fill="#0b110d" stroke="#d9a441" stroke-width="1.8"/>
+  <circle cx="100" cy="100" r="2.8" fill="#e9d9b6" opacity=".9"/>
 </svg>
