@@ -3,6 +3,9 @@ public/
 resources/_gen/
 .hugo_build.lock
 
+# 采集缓存（原始素材，临时文件，不提交）
+.cache/
+
 # 系统文件
 .DS_Store
 Thumbs.db

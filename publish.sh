@@ -1,27 +1,35 @@
 #!/usr/bin/env bash
 # 境外 GBB/AEG 简报 —— 发布脚本
-# 用途：把新生成的简报 markdown 提交并推送到 GitHub，触发 Pages 更新
+# 用途：本地构建校验 → 提交 → 推送到 GitHub（触发 Pages 更新）
 #
 # 用法：bash publish.sh "提交信息"
 #
 # 前置条件：
-#   1. 已设置 GITHUB_TOKEN 环境变量（Fine-grained PAT，需 Contents: Read and write）
+#   1. git 凭据已配置（~/.git-credentials + credential.helper=store）
+#      —— 无需 GITHUB_TOKEN，推送走凭据管理器，可无人值守
 #   2. 简报 markdown 已放入 content/posts/
 
-set -euo pipefail
+set -uo pipefail
 
 REPO_DIR="/d/blog-hugo"
-REMOTE="https://github.com/XIANV0031/blog.git"
 BRANCH="main"
 HUGO_BIN="/c/Users/Administrator/AppData/Local/Microsoft/WinGet/Links/hugo.exe"
 
-MSG="${1:-update: 每日简报 $(date +%Y-%m-%d)}"
+MSG="${1:-brief: $(date +%Y-%m-%d) 境外 GBB/AEG 资讯简报}"
 
-cd "$REPO_DIR"
+cd "$REPO_DIR" || { echo "错误：无法进入 $REPO_DIR"; exit 1; }
 
-# 1. 构建（本地校验，产物不推送，由 GitHub Actions 构建）
+# 1. 构建校验（本地预检；实际产物由 GitHub Actions 构建）
 echo "[1/4] 本地构建校验..."
-"$HUGO_BIN" --gc --minify --quiet || { echo "构建失败，终止"; exit 1; }
+if [ -x "$HUGO_BIN" ]; then
+  if ! "$HUGO_BIN" --source "$REPO_DIR" --gc --minify --quiet 2>&1; then
+    echo "构建失败（出现 ERROR），终止发布。"
+    exit 1
+  fi
+  echo "      构建通过"
+else
+  echo "      警告：未找到 hugo（$HUGO_BIN），跳过本地校验，交由 Actions 构建"
+fi
 
 # 2. 检查是否有变更
 if git diff --quiet && git diff --cached --quiet && [ -z "$(git status --porcelain)" ]; then
@@ -32,15 +40,23 @@ fi
 # 3. 提交
 echo "[2/4] 提交变更..."
 git add -A
-git commit -m "$MSG" || echo "（无需提交）"
+if ! git commit -m "$MSG"; then
+  echo "      （无需提交，可能已提交过）"
+fi
 
-# 4. 推送（用 token 注入 remote，不落盘）
+# 4. 推送（走凭据管理器；GIT_TERMINAL_PROMPT=0 确保不阻塞等待输入）
 echo "[3/4] 推送..."
-if [ -n "${GITHUB_TOKEN:-}" ]; then
-  git push "https://XIANV0031:${GITHUB_TOKEN}@github.com/XIANV0031/blog.git" "HEAD:${BRANCH}"
+export http_proxy="http://127.0.0.1:7897"
+export https_proxy="http://127.0.0.1:7897"
+if GIT_TERMINAL_PROMPT=0 git push origin "$BRANCH"; then
+  echo "      推送成功"
 else
-  echo "错误：未设置 GITHUB_TOKEN"
+  echo "错误：推送失败。请检查网络/代理与 git 凭据（~/.git-credentials）。"
   exit 1
 fi
 
-echo "[4/4] 完成。站点将在 1-2 分钟后于 https://xianv0031.github.io/blog/ 更新"
+# 5. 提示后续验证
+echo "[4/4] 完成。"
+echo "      Actions 将自动构建部署（约 1-2 分钟）。"
+echo "      请务必验证线上是否真的更新（push 成功 ≠ 部署成功）："
+echo "        curl -s \"https://xianv0031.github.io/blog/index.xml?cb=\$RANDOM\" | grep -oE '<title>[^<]*</title>'"
