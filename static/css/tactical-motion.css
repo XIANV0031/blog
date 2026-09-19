@@ -1,0 +1,725 @@
+/* ============================================================
+   战术工装主题 —— 动效与几何层
+   ------------------------------------------------------------
+   与 tactical.css 分离：本文件只负责「动画 / 多边形 / 音频播放器」。
+   低频、大位移、慢节奏，主打「大开大合」，但正文区域保持静止。
+   ------------------------------------------------------------
+   设计铁律：
+     1. 所有动画只作用于装饰层，绝不作用于正文（避免阅读干扰）
+     2. 尊重 prefers-reduced-motion（无障碍底线）
+     3. 全部用 transform / opacity，不触碰 layout 属性（避免重排掉帧）
+   ============================================================ */
+
+/* ============ 1. 动效变量 ============ */
+:root {
+  --motion-slow: 1.6s;
+  --motion-mid: 0.9s;
+  --motion-fast: 0.45s;
+  --motion-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --motion-ease-snap: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ============ 2. 多边形几何背景层 ============ */
+/* 固定在视口底层的战术几何图形，缓慢漂移。
+   ⚠️ 重要坑：clip-path 会把 border 一起裁掉（实测边框只剩角落几个像素）。
+      所以「描边多边形」必须用双层结构：外层是被裁剪的实心色块（充当描边），
+      内层再叠一个略小一圈、用背景色填充的同形块，视觉上才得到"空心轮廓"。
+      纯实心多边形则无此问题。 */
+.geo-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+}
+
+.geo-layer .poly {
+  position: absolute;
+  will-change: transform;
+}
+
+/* 六边形轮廓（大，慢转）—— 双层描边，避开顶栏与内容列 */
+.poly-hex-lg {
+  top: 22%;
+  right: -180px;
+  width: 420px;
+  height: 420px;
+  background: rgba(125, 140, 92, 0.5);
+  clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+  animation: geo-rotate 90s linear infinite;
+}
+.poly-hex-lg::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  background: var(--theme-bg);
+  clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+}
+
+/* 六边形（实心，中号） */
+.poly-hex-md {
+  top: 62%;
+  left: -120px;
+  width: 300px;
+  height: 300px;
+  background: rgba(44, 61, 49, 0.85);
+  clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
+  animation: geo-drift-a 44s ease-in-out infinite;
+}
+
+/* 三角（警示向，实心带渐变）—— 下移到内容列左侧空白，避开顶栏 */
+.poly-tri {
+  top: 52%;
+  left: -28px;
+  width: 150px;
+  height: 150px;
+  background: linear-gradient(135deg, rgba(217, 164, 65, 0.32), rgba(217, 164, 65, 0.07));
+  clip-path: polygon(50% 6%, 96% 92%, 4% 92%);
+  animation: geo-drift-b 34s ease-in-out infinite;
+}
+
+/* 菱形（小，快节奏） */
+.poly-dia {
+  bottom: 12%;
+  right: 4%;
+  width: 104px;
+  height: 104px;
+  background: rgba(125, 140, 92, 0.45);
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  animation: geo-drift-c 26s ease-in-out infinite;
+}
+
+/* 楔形（斜角，呼应嵌板语言） */
+.poly-wedge {
+  top: 15%;
+  left: 30%;
+  width: 220px;
+  height: 66px;
+  background: rgba(34, 48, 38, 0.9);
+  clip-path: polygon(0 0, 100% 0, 88% 100%, 0 100%);
+  animation: geo-drift-a 52s ease-in-out infinite reverse;
+}
+
+/* 细十字准星（战术十字）—— 用两条伪元素画线，不涉及 clip-path */
+.poly-cross {
+  bottom: 20%;
+  left: 6%;
+  width: 130px;
+  height: 130px;
+  background: none;
+  border: 0;
+  animation: geo-drift-c 40s ease-in-out infinite reverse;
+}
+.poly-cross::before,
+.poly-cross::after {
+  content: '';
+  position: absolute;
+  background: rgba(217, 164, 65, 0.5);
+}
+.poly-cross::before {
+  left: 50%;
+  top: 0;
+  width: 1.5px;
+  height: 100%;
+  transform: translateX(-50%);
+}
+.poly-cross::after {
+  top: 50%;
+  left: 0;
+  height: 1.5px;
+  width: 100%;
+  transform: translateY(-50%);
+}
+
+/* 准星外圈：实心圆 + 内层背景色圆做出环形（规避 clip-path 边框问题） */
+.poly-cross-ring {
+  bottom: 20%;
+  left: 6%;
+  width: 130px;
+  height: 130px;
+  background: rgba(217, 164, 65, 0.34);
+  border-radius: 50%;
+  animation: geo-ring 20s ease-in-out infinite;
+}
+.poly-cross-ring::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: var(--theme-bg);
+}
+
+@keyframes geo-ring {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50%      { transform: scale(1.35); opacity: 0.3; }
+}
+
+@keyframes geo-rotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes geo-drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  50%      { transform: translate3d(28px, -34px, 0) rotate(8deg); }
+}
+
+@keyframes geo-drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+  50%      { transform: translate3d(-36px, 24px, 0) rotate(-12deg) scale(1.12); }
+}
+
+@keyframes geo-drift-c {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+  33%      { transform: translate3d(18px, 22px, 0) rotate(45deg) scale(1.08); }
+  66%      { transform: translate3d(-14px, 12px, 0) rotate(20deg) scale(0.94); }
+}
+
+/* 内容层需盖在几何背景之上 */
+/* 注意：PaperMod 的容器是 main.main，没有 .wrap */
+.main {
+  position: relative;
+  z-index: 2;
+}
+
+/* ⚠️ 关键：PaperMod 给 body.list 设了不透明背景（.list { background: var(--theme) }），
+   会把 position:fixed 的几何层整个盖住（几何层 z-index 再高也压不过父级背景的绘制顺序）。
+   解决：让 body.list 背景透明，把底色下沉到 html 上；这样 body 层是空的，
+   .geo-layer（body 的子元素）就能显出来，而 .main 再叠在它上面。 */
+body.list {
+  background: transparent !important;
+}
+
+html {
+  background-color: var(--theme-bg) !important;
+}
+
+/* ============ 3. 大开大合入场动效 ============ */
+
+/* 主面板：放大滑入 + 轻微过冲 */
+@keyframes panel-slam-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 40px, 0) scale(0.94);
+  }
+  60% {
+    opacity: 1;
+    transform: translate3d(0, -4px, 0) scale(1.012);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+/* 从左侧斜切推入（呼应斜角语言） */
+@keyframes panel-wedge-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(-56px, 0, 0) skewX(-6deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) skewX(0);
+  }
+}
+
+/* 标题：从左展开（clip 擦除感） */
+@keyframes title-wipe-in {
+  0% {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+  100% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* 顶栏：从上方落下 */
+@keyframes header-drop-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -100%, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.home-info {
+  animation: panel-slam-in 0.85s var(--motion-ease-out) both;
+}
+
+.home-info .entry-header h1 {
+  animation: title-wipe-in 0.7s var(--motion-ease-out) 0.2s both;
+}
+
+.home-info .entry-content {
+  animation: panel-wedge-in 0.7s var(--motion-ease-out) 0.34s both;
+}
+
+.home-info .entry-footer {
+  animation: panel-wedge-in 0.6s var(--motion-ease-out) 0.46s both;
+}
+
+.header {
+  animation: header-drop-in 0.5s var(--motion-ease-out) both;
+}
+
+/* 文章卡片：逐条错峰滑入 */
+@keyframes entry-rise-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 26px, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.post-entry {
+  animation: entry-rise-in 0.6s var(--motion-ease-out) both;
+}
+.post-entry:nth-of-type(1) { animation-delay: 0.5s; }
+.post-entry:nth-of-type(2) { animation-delay: 0.62s; }
+.post-entry:nth-of-type(3) { animation-delay: 0.74s; }
+.post-entry:nth-of-type(4) { animation-delay: 0.86s; }
+.post-entry:nth-of-type(5) { animation-delay: 0.98s; }
+.post-entry:nth-of-type(n + 6) { animation-delay: 1.08s; }
+
+/* 卡片左边缘的琥珀扫描条（hover 时横扫） */
+.post-entry::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--amber);
+  transform: scaleY(0);
+  transform-origin: top;
+  transition: transform 0.34s var(--motion-ease-out);
+  box-shadow: 0 0 10px rgba(217, 164, 65, 0.5);
+}
+
+.post-entry:hover::before {
+  transform: scaleY(1);
+}
+
+/* ============ 4. 导航与按钮的弹性交互 ============ */
+
+#menu a {
+  position: relative;
+  overflow: hidden;
+  transition: all var(--motion-fast) var(--motion-ease-out);
+}
+
+#menu a::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 100%;
+  background: var(--amber);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s var(--motion-ease-out);
+}
+
+#menu a:hover::after,
+#menu .active a::after {
+  transform: scaleX(1);
+}
+
+/* 状态指示灯：加强脉冲，改双频呼吸 */
+@keyframes pulse-strong {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 10px var(--amber), 0 0 3px rgba(255, 255, 255, 0.7) inset;
+    transform: translateY(-50%) scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    box-shadow: 0 0 3px var(--amber), 0 0 2px rgba(255, 255, 255, 0.4) inset;
+    transform: translateY(-50%) scale(0.82);
+  }
+}
+
+.home-info .entry-header h1::before {
+  animation: pulse-strong 2.6s var(--motion-ease-in-out) infinite !important;
+}
+
+/* ============ 5. 图形装饰元素 ============ */
+
+/* 标题右侧的斜纹装饰群 */
+.home-info .entry-header h1::after {
+  content: '';
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 74px;
+  height: 12px;
+  background: repeating-linear-gradient(
+    -55deg,
+    rgba(217, 164, 65, 0.55) 0px,
+    rgba(217, 164, 65, 0.55) 3px,
+    transparent 3px,
+    transparent 7px
+  );
+  animation: stripe-slide 3.4s linear infinite;
+}
+
+@keyframes stripe-slide {
+  from { background-position: 0 0; }
+  to   { background-position: 20px 0; }
+}
+
+/* 内容面板四角：从单铆钉升级为「角标」 */
+.home-info .entry-content::before,
+.home-info .entry-content::after {
+  width: 14px;
+  height: 14px;
+  border-radius: 0;
+  background: none;
+  border-top: 2px solid var(--amber);
+  border-right: 2px solid var(--amber);
+  opacity: 0.6;
+  transition: all 0.3s var(--motion-ease-out);
+}
+.home-info .entry-content::before {
+  top: 6px;
+  left: 6px;
+  transform: rotate(-90deg);
+}
+.home-info .entry-content::after {
+  top: 6px;
+  right: 6px;
+  transform: rotate(0deg);
+}
+
+.home-info:hover .entry-content::before {
+  opacity: 1;
+  transform: rotate(-90deg) translate(-3px, -3px);
+}
+.home-info:hover .entry-content::after {
+  opacity: 1;
+  transform: rotate(0deg) translate(3px, -3px);
+}
+
+/* 顶部战术条纹：流动 */
+body::after {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--sand-400) 0px,
+    var(--sand-400) 12px,
+    var(--mil-green-600) 12px,
+    var(--mil-green-600) 24px
+  ) !important;
+  background-size: 24px 100% !important;
+  animation: topbar-flow 1.8s linear infinite;
+}
+
+@keyframes topbar-flow {
+  from { background-position: 0 0; }
+  to   { background-position: 24px 0; }
+}
+
+/* 二级标题：hover 时琥珀条加长 */
+.post-content h2 {
+  transition: padding-left 0.3s var(--motion-ease-out), border-left-color 0.3s ease;
+}
+.post-content h2:hover {
+  border-left-color: var(--sand-100);
+}
+
+/* ============ 6. 音频播放器 ============ */
+.player {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 800;
+  width: 268px;
+  font-family: var(--font-mono);
+  background: linear-gradient(180deg, var(--mil-green-700), var(--mil-green-800));
+  border: 1px solid var(--metal-edge);
+  border-radius: 2px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 6px 24px rgba(0, 0, 0, 0.55);
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+  overflow: hidden;
+  animation: player-in 0.7s var(--motion-snap) 1.2s both;
+  transition: width 0.3s var(--motion-ease-out);
+}
+
+@keyframes player-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 24px, 0) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.player.is-collapsed {
+  width: 52px;
+}
+
+/* 头部：标题 + 折叠按钮 */
+.player-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid rgba(74, 90, 74, 0.4);
+  background: rgba(13, 20, 16, 0.4);
+}
+
+.player-title {
+  font-size: 0.63rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--sand-300);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player.is-collapsed .player-title,
+.player.is-collapsed .player-body {
+  display: none;
+}
+
+/* 频谱条：播放时跳动 */
+.player-eq {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.player-eq i {
+  width: 2px;
+  height: 3px;
+  background: var(--amber-dim);
+  display: block;
+  transition: background 0.3s ease;
+}
+
+.player.is-playing .player-eq i {
+  background: var(--amber);
+  animation: eq-bounce 0.9s ease-in-out infinite;
+}
+.player.is-playing .player-eq i:nth-child(1) { animation-delay: 0s; }
+.player.is-playing .player-eq i:nth-child(2) { animation-delay: 0.14s; }
+.player.is-playing .player-eq i:nth-child(3) { animation-delay: 0.28s; }
+.player.is-playing .player-eq i:nth-child(4) { animation-delay: 0.42s; }
+
+@keyframes eq-bounce {
+  0%, 100% { height: 3px; }
+  50%      { height: 13px; }
+}
+
+.player-toggle {
+  background: none;
+  border: 1px solid var(--metal-edge);
+  border-radius: 2px;
+  color: var(--sand-300);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  line-height: 1;
+  transition: all var(--motion-fast) ease;
+  flex-shrink: 0;
+}
+.player-toggle:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.player-body {
+  padding: 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+/* 曲目信息 */
+.player-track {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.player-idx {
+  font-size: 0.62rem;
+  color: var(--amber);
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+.player-name {
+  font-size: 0.7rem;
+  color: var(--sand-100);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 进度条 */
+.player-progress {
+  height: 3px;
+  background: rgba(13, 20, 16, 0.7);
+  border: 1px solid rgba(74, 90, 74, 0.35);
+  border-radius: 1px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+.player-bar {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--amber-dim), var(--amber));
+  transition: width 0.2s linear;
+}
+
+/* 控制区 */
+.player-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.player-btn {
+  background: rgba(13, 20, 16, 0.5);
+  border: 1px solid var(--metal-edge);
+  border-radius: 2px;
+  color: var(--sand-200);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  padding: 4px 8px;
+  line-height: 1;
+  transition: all var(--motion-fast) ease;
+  flex: 1;
+}
+.player-btn:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+  background: rgba(217, 164, 65, 0.1);
+}
+.player-btn:active {
+  transform: scale(0.94);
+}
+.player-btn.is-main {
+  flex: 0 0 auto;
+  padding: 4px 12px;
+  color: var(--amber);
+  border-color: var(--amber-dim);
+}
+
+.player-time {
+  font-size: 0.62rem;
+  color: var(--theme-fg-dim);
+  text-align: right;
+  letter-spacing: 0.04em;
+}
+
+/* 音量 */
+.player-vol {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.player-vol label {
+  font-size: 0.6rem;
+  color: var(--theme-fg-dim);
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+.player-vol input[type='range'] {
+  flex: 1;
+  height: 14px;
+  accent-color: var(--amber);
+  background: transparent;
+  cursor: pointer;
+}
+
+/* 版权署名 */
+.player-credit {
+  font-size: 0.56rem;
+  line-height: 1.45;
+  color: var(--theme-fg-dim);
+  opacity: 0.68;
+  border-top: 1px dashed rgba(122, 138, 112, 0.22);
+  padding-top: 0.42rem;
+}
+.player-credit a {
+  color: var(--sand-400);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--amber-dim);
+}
+.player-credit a:hover {
+  color: var(--amber);
+}
+
+/* 移动端：缩为窄条 */
+@media (max-width: 768px) {
+  .player {
+    right: 12px;
+    bottom: 12px;
+    width: 232px;
+  }
+}
+
+/* ============ 7. 无障碍：尊重系统减弱动效设置 ============ */
+/* 说明：几何图形是纯装饰、无信息量，因此「静止保留」而非「整体隐藏」——
+   用户仍然看到战术风格，只是不再运动。只有位移/旋转类动画被禁用。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* 装饰图形保留静态展示（不运动，但仍在） */
+  .geo-layer .poly,
+  .poly-cross-ring {
+    animation: none !important;
+  }
+
+  /* 入场动画直接跳到终态，避免元素停在 opacity:0 */
+  .home-info,
+  .home-info .entry-header h1,
+  .home-info .entry-content,
+  .home-info .entry-footer,
+  .header,
+  .post-entry,
+  .player {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: none !important;
+  }
+
+  /* 顶部条纹与频谱条停止运动 */
+  body::after {
+    animation: none !important;
+  }
+  .player.is-playing .player-eq i {
+    animation: none !important;
+    height: 8px !important;
+  }
+}
