@@ -1,5 +1,5 @@
 baseURL = 'https://xianv0031.github.io/blog/'
-locale = 'zh-cn'
+languageCode = 'zh-cn'
 defaultContentLanguage = 'zh-cn'
 title = '境外 GBB/AEG 简报'
 theme = 'PaperMod'
