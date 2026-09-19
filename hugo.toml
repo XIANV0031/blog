@@ -47,7 +47,7 @@ buildFuture = true
     repo = 'XIANV0031/blog'
     repoId = 'R_kgDOUf4S8w'
     category = 'Announcements'
-    categoryId = 'PENDING_CATEGORY_ID'   # ← 待填：从 giscus.app 获取
+    categoryId = 'DIC_kwDOUf4S884DF8rm'   # 从 giscus.app 获取（Announcements 分类）
     mapping = 'pathname'                 # 与 giscus.app 上的映射设置保持一致
     strict = '0'
     reactionsEnabled = '1'               # 1 = 显示点赞/表情反应
