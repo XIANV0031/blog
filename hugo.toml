@@ -24,6 +24,7 @@ buildFuture = true
   defaultTheme = 'dark'
   disableThemeToggle = false
   DateFormat = '2006-01-02'
+  comments = true          # 开启评论区（模板见 layouts/_partials/comments.html）
 
   [params.homeInfoParams]
     Title = '境外 GBB/AEG 简报'
@@ -35,6 +36,27 @@ buildFuture = true
   [[params.socialIcons]]
     name = 'github'
     url = 'https://github.com/XIANV0031'
+
+  # ---------- 评论区 / 点赞（Giscus）----------
+  # 首次启用需在 GitHub 侧完成两件事：
+  #   1. 仓库 Settings → Features 勾选 Discussions
+  #   2. 安装 Giscus App：https://github.com/apps/giscus
+  # 然后在 https://giscus.app/zh-CN 填入仓库并获取 repoId / categoryId。
+  [params.giscus]
+    enable = true
+    repo = 'XIANV0031/blog'
+    repoId = 'R_kgDOUf4S8w'
+    category = 'Announcements'
+    categoryId = 'PENDING_CATEGORY_ID'   # ← 待填：从 giscus.app 获取
+    mapping = 'pathname'                 # 与 giscus.app 上的映射设置保持一致
+    strict = '0'
+    reactionsEnabled = '1'               # 1 = 显示点赞/表情反应
+    emitMetadata = '0'
+    inputPosition = 'bottom'
+    theme = 'preferred_color_scheme'     # 自动跟随明暗主题
+    lang = 'zh-CN'
+    loading = 'lazy'
+
 
 [menu]
   [[menu.main]]

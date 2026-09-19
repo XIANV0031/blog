@@ -1,0 +1,49 @@
+{{- /*
+  评论区（Giscus，基于 GitHub Discussions）
+  
+  覆盖主题同名 partial：themes/PaperMod/layouts/_partials/comments.html
+  主题原文件是空壳，此处提供真实实现。
+  
+  由 single.html 第 62-63 行调用：
+      {{- if (.Param "comments") }}
+      {{- partial "comments.html" . }}
+      {{- end }}
+  
+  参数配置见 hugo.toml 的 [params.giscus] 段。
+  若 giscus.enable 为 false，则整块不渲染。
+*/ -}}
+
+{{- $g := site.Params.giscus | default dict -}}
+{{- /* categoryId 未填（占位符）时不渲染，避免输出无效的 giscus 块 */ -}}
+{{- $ready := and $g.enable $g.repoId $g.categoryId (ne $g.categoryId "PENDING_CATEGORY_ID") -}}
+{{- if $ready -}}
+
+{{- /* 用 pathname 作为讨论区映射键，与 giscus.app 上的设置保持一致 */ -}}
+{{- $pathname := .RelPermalink -}}
+
+<div class="comments" style="margin-top:2.5rem;">
+  <hr style="opacity:.25;margin-bottom:1.5rem;">
+  <h3 style="margin-bottom:1rem;font-size:1.1rem;">评论与点赞</h3>
+  <p style="font-size:.82rem;opacity:.6;margin-bottom:1rem;">
+    使用 GitHub 账号登录后可点赞、评论。数据保存在本站的 GitHub 仓库中。
+  </p>
+
+  <script src="https://giscus.app/client.js"
+          data-repo="{{ $g.repo }}"
+          data-repo-id="{{ $g.repoId }}"
+          data-category="{{ $g.category }}"
+          data-category-id="{{ $g.categoryId }}"
+          data-mapping="{{ $g.mapping | default "pathname" }}"
+          data-strict="{{ $g.strict | default "0" }}"
+          data-reactions-enabled="{{ $g.reactionsEnabled | default "1" }}"
+          data-emit-metadata="{{ $g.emitMetadata | default "0" }}"
+          data-input-position="{{ $g.inputPosition | default "bottom" }}"
+          data-theme="{{ $g.theme | default "preferred_color_scheme" }}"
+          data-lang="{{ $g.lang | default "zh-CN" }}"
+          data-loading="{{ $g.loading | default "lazy" }}"
+          crossorigin="anonymous"
+          async>
+  </script>
+</div>
+
+{{- end -}}
