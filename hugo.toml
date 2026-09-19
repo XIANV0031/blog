@@ -29,8 +29,11 @@ buildFuture = true
   [params.homeInfoParams]
     Title = '境外 GBB/AEG 简报'
     Content = '''
-只采集境外信源（Reddit、YouTube、境外行业媒体等），
-**完全排除国内平台**。每日自动更新。
+**信源范围** 只采集境外渠道（Reddit、境外行业媒体、厂商官网），**完全排除国内平台**。
+
+**更新频率** 每日 08:00 自动采集与发布，无需人工干预。
+
+**主题范围** GBB / GBBR / AEG 器材动态、厂商新品、社群一手反馈、二手行情。
 '''
 
   [[params.socialIcons]]

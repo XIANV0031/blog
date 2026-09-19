@@ -6,6 +6,9 @@ resources/_gen/
 # 采集缓存（原始素材，临时文件，不提交）
 .cache/
 
+# 本地预览产物（临时，不提交）
+public-preview/
+
 # 系统文件
 .DS_Store
 Thumbs.db

@@ -1,0 +1,826 @@
+/* ============================================================
+   境外 GBB/AEG 简报 —— 战术工装主题
+   ------------------------------------------------------------
+   设计基调：军绿 + 沙色，铆钉 / 斜角嵌板 / 金属边框 / CRT 扫描线
+   配色参照：军械箱、战术装备铭牌、军用仪器面板
+   ------------------------------------------------------------
+   结构：
+     1. 配色变量
+     2. 全局质感（字体 / 背景 / 扫描线）
+     3. 导航栏（铆钉金属条）
+     4. 首页仪表盘（home_info 面板化）
+     5. 文章卡片（斜角嵌板）
+     6. 正文排版（可读性优先）
+     7. 表格 / 引用 / 代码块（铭牌化）
+     8. 文章页元信息 / 评论区
+     9. 页脚
+   ============================================================ */
+
+/* ============ 1. 配色变量 ============ */
+:root {
+  /* 覆写主题默认宽度（默认 720px 偏窄，正文长行易疲劳但过宽也难读） */
+  --main-width: 860px;
+  --gap: 22px;
+
+  /* 军绿系 */
+  --mil-green-900: #0d1410;
+  --mil-green-800: #131c16;
+  --mil-green-700: #1a251c;
+  --mil-green-600: #223026;
+  --mil-green-500: #2c3d31;
+
+  /* 沙色系 */
+  --sand-100: #f2ead8;
+  --sand-200: #ded2b8;
+  --sand-300: #c4b696;
+  --sand-400: #a89a78;
+
+  /* 强调色（仪表指示灯） */
+  --amber: #d9a441;
+  --amber-dim: #8a6a2a;
+  --olive: #7d8c5c;
+  --alert: #b8543c;
+
+  /* 金属边框 */
+  --metal-edge: #4a5a4a;
+  --metal-dark: #0a0f0c;
+
+  /* 正文 */
+  --text-main: #d8d2c2;
+  --text-dim: #9a9585;
+}
+
+/* 暗色（默认） */
+:root[data-theme='dark'],
+:root[data-theme='auto'] {
+  --theme-bg: var(--mil-green-900);
+  --theme-bg-alt: var(--mil-green-800);
+  --theme-fg: var(--text-main);
+  --theme-fg-dim: var(--text-dim);
+  --theme-border: var(--metal-edge);
+}
+
+/* 亮色（保留可用，但同样走工装调性） */
+:root[data-theme='light'] {
+  --theme-bg: #e8e2d2;
+  --theme-bg-alt: #f2ead8;
+  --theme-fg: #1e2a20;
+  --theme-fg-dim: #5a5a4a;
+  --theme-border: #9a927a;
+}
+
+/* ============ 2. 全局质感 ============ */
+/* 等宽字体用于标识性文字，正文仍用系统无衬线，保证长文可读 */
+:root {
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'Consolas', 'SF Mono',
+               'DejaVu Sans Mono', 'Courier New', monospace;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+               'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+}
+
+body {
+  background-color: var(--theme-bg) !important;
+  color: var(--theme-fg) !important;
+  font-family: var(--font-body);
+  /* 细微的织物/纸面噪点 */
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.012) 0px,
+      rgba(255, 255, 255, 0.012) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+}
+
+/* CRT 扫描线 —— 极淡，不干扰阅读 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.055) 0px,
+    rgba(0, 0, 0, 0.055) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  opacity: 0.5;
+}
+
+/* 顶部一条沙色战术线 */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 10000;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--sand-400) 0px,
+    var(--sand-400) 12px,
+    var(--mil-green-600) 12px,
+    var(--mil-green-600) 24px
+  );
+  opacity: 0.75;
+}
+
+/* ============ 3. 导航栏 —— 铆钉金属条 ============ */
+.header {
+  background: linear-gradient(
+    180deg,
+    var(--mil-green-700) 0%,
+    var(--mil-green-800) 100%
+  ) !important;
+  border-bottom: 2px solid var(--metal-edge) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 2px 0 rgba(0, 0, 0, 0.5),
+    0 4px 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+.nav {
+  max-width: 1000px;
+}
+
+/* 站点标题：铭牌感 */
+.logo a {
+  font-family: var(--font-mono) !important;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sand-200) !important;
+  font-weight: 700;
+}
+
+.logo a::before {
+  content: '▮';
+  color: var(--amber);
+  opacity: 0.85;
+  margin-right: 0.5rem;
+  display: inline-block;
+}
+
+/* 标题与主题切换按钮之间留出间距，避免 ▮ 与按钮视觉粘连 */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.logo .logo-switches {
+  margin-left: 0.15rem;
+}
+
+/* 导航链接：标签条 */
+#menu a {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  transition: all 0.15s ease;
+}
+
+#menu a:hover,
+#menu .active a {
+  border-color: var(--metal-edge);
+  background: rgba(217, 164, 65, 0.09);
+  color: var(--amber) !important;
+}
+
+/* 主题切换按钮 */
+#theme-toggle {
+  border: 1px solid var(--metal-edge);
+  border-radius: 2px;
+  padding: 3px;
+}
+
+/* ============ 4. 首页 —— 仪表盘主视觉 ============ */
+/* home_info 面板化：斜角 + 金属边 + 名牌 */
+.home-info {
+  border: none !important;
+  background: none !important;
+  padding: 0 !important;
+  margin-top: 2rem !important;
+  margin-bottom: 2.5rem !important;
+}
+
+.home-info .entry-header h1 {
+  font-family: var(--font-mono) !important;
+  font-size: 1.35rem !important;
+  letter-spacing: 0.05em;
+  color: var(--sand-100) !important;
+  text-transform: uppercase;
+  position: relative;
+  padding: 0.85rem 1.2rem 0.85rem 2.3rem;
+  margin: 0 0 0.7rem 0 !important;
+  background: linear-gradient(
+    135deg,
+    var(--mil-green-600) 0%,
+    var(--mil-green-700) 100%
+  );
+  border: 1px solid var(--metal-edge);
+  border-left: 4px solid var(--amber);
+  /* 斜角嵌板 */
+  clip-path: polygon(
+    0 0,
+    calc(100% - 16px) 0,
+    100% 16px,
+    100% 100%,
+    16px 100%,
+    0 calc(100% - 16px)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+/* 标题左侧的状态指示灯 */
+.home-info .entry-header h1::before {
+  content: '';
+  position: absolute;
+  left: 0.95rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 8px var(--amber), 0 0 2px rgba(255, 255, 255, 0.6) inset;
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* 简介正文：数据面板（三行紧凑排布） */
+.home-info .entry-content {
+  font-size: 0.87rem !important;
+  line-height: 1.65 !important;
+  color: var(--theme-fg) !important;
+  padding: 0.9rem 1.2rem;
+  background: linear-gradient(
+    180deg,
+    var(--mil-green-700) 0%,
+    var(--mil-green-800) 100%
+  );
+  border: 1px solid var(--metal-edge);
+  border-radius: 2px 2px 0 0;   /* 下方与社交工具栏拼接 */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 30px rgba(0, 0, 0, 0.35);
+  position: relative;
+}
+
+/* 面板内段落：压缩段间距 */
+.home-info .entry-content p {
+  margin: 0.35rem 0 !important;
+}
+
+.home-info .entry-content p:first-child {
+  margin-top: 0 !important;
+}
+
+.home-info .entry-content p:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* 「信源范围」「更新频率」「主题范围」行首标签 */
+.home-info .entry-content strong {
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+  margin-right: 0.35rem;
+}
+
+/* 四角铆钉 */
+.home-info .entry-content::before,
+.home-info .entry-content::after {
+  content: '';
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #8a948a, #2a342c 70%);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.7);
+}
+.home-info .entry-content::before {
+  top: 7px;
+  left: 7px;
+}
+.home-info .entry-content::after {
+  top: 7px;
+  right: 7px;
+}
+
+.home-info .entry-content strong {
+  color: var(--amber);
+}
+
+/* 首页社交图标 —— 并入面板底部，作为铭牌工具栏 */
+.home-info .entry-footer {
+  border: 1px solid var(--metal-edge);
+  border-top: none;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(
+    180deg,
+    var(--mil-green-700) 0%,
+    var(--mil-green-600) 100%
+  );
+  padding: 0.5rem 1.2rem !important;
+  margin-top: -1px !important;   /* 与上方内容面板无缝衔接 */
+  min-height: 0 !important;
+}
+
+.home-info .social-icons {
+  margin: 0 !important;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* 面板底部加一行说明文字，避免社交图标孤立 */
+.home-info .social-icons::before {
+  content: 'SOURCE · GITHUB';
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  color: var(--theme-fg-dim);
+  margin-right: 0.3rem;
+  opacity: 0.75;
+}
+
+.home-info .social-icons a {
+  border: 1px solid var(--metal-edge);
+  border-radius: 2px;
+  padding: 3px 6px;
+  background: var(--mil-green-800);
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  color: var(--sand-300) !important;
+}
+
+.home-info .social-icons a svg {
+  width: 16px;
+  height: 16px;
+  color: var(--sand-300);
+  stroke: currentColor;
+}
+
+/* 工具栏右侧补齐一条虚线，避免面板底部看起来"没画完" */
+.home-info .entry-footer::after {
+  content: '';
+  display: block;
+  height: 0;
+  margin-top: 0.5rem;
+  border-top: 1px dashed rgba(122, 138, 112, 0.18);
+}
+
+.home-info .social-icons a:hover {
+  border-color: var(--amber);
+  background: rgba(217, 164, 65, 0.12);
+  color: var(--amber) !important;
+}
+
+.home-info .social-icons a:hover svg {
+  color: var(--amber);
+}
+
+/* ============ 5. 文章卡片 —— 斜角嵌板 ============ */
+.post-entry {
+  background: linear-gradient(
+    135deg,
+    var(--mil-green-700) 0%,
+    var(--mil-green-800) 100%
+  ) !important;
+  border: 1px solid var(--metal-edge) !important;
+  border-left: 3px solid var(--olive) !important;
+  border-radius: 2px !important;
+  padding: 1.1rem 1.3rem !important;
+  margin-bottom: 1rem !important;
+  position: relative;
+  transition: all 0.18s ease;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.post-entry:hover {
+  border-left-color: var(--amber) !important;
+  transform: translateX(3px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 4px 16px rgba(0, 0, 0, 0.5),
+    -2px 0 12px rgba(217, 164, 65, 0.1);
+}
+
+/* 卡片右上角铆钉 */
+.post-entry::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #8a948a, #2a342c 70%);
+  opacity: 0.7;
+}
+
+.entry-header h2,
+.entry-header h1 {
+  font-family: var(--font-mono) !important;
+  font-size: 1.02rem !important;
+  letter-spacing: 0.02em;
+  color: var(--sand-100) !important;
+  font-weight: 600;
+}
+
+.post-entry:hover .entry-header h2 {
+  color: var(--amber) !important;
+}
+
+.entry-content {
+  font-size: 0.86rem !important;
+  line-height: 1.7 !important;
+  color: var(--theme-fg-dim) !important;
+  margin-top: 0.5rem !important;
+}
+
+.entry-footer {
+  font-family: var(--font-mono);
+  font-size: 0.74rem !important;
+  letter-spacing: 0.03em;
+  color: var(--theme-fg-dim) !important;
+  margin-top: 0.6rem !important;
+  padding-top: 0.5rem;
+  border-top: 1px dashed rgba(122, 138, 112, 0.25);
+}
+
+/* 首个条目（first-entry）在开启 homeInfoParams 时不会出现，保险处理 */
+.first-entry {
+  background: linear-gradient(
+    135deg,
+    var(--mil-green-600) 0%,
+    var(--mil-green-700) 100%
+  ) !important;
+  border-left: 3px solid var(--amber) !important;
+}
+
+/* ============ 6. 正文排版（可读性优先）============ */
+.post-content {
+  font-size: 0.96rem !important;
+  line-height: 1.85 !important;
+  color: var(--theme-fg) !important;
+}
+
+.post-content h1,
+.post-content h2,
+.post-content h3,
+.post-content h4 {
+  font-family: var(--font-mono) !important;
+  color: var(--sand-100) !important;
+  letter-spacing: 0.02em;
+  font-weight: 600;
+}
+
+/* 二级标题：嵌板条 */
+.post-content h2 {
+  font-size: 1.12rem !important;
+  margin-top: 2.2rem !important;
+  padding: 0.55rem 0.9rem 0.55rem 1.5rem;
+  background: linear-gradient(
+    90deg,
+    var(--mil-green-600) 0%,
+    transparent 100%
+  );
+  border-left: 3px solid var(--amber);
+  position: relative;
+}
+
+.post-content h2::before {
+  content: '';
+  position: absolute;
+  left: 0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 5px var(--amber);
+}
+
+.post-content h3 {
+  font-size: 1rem !important;
+  margin-top: 1.6rem !important;
+  padding-left: 0.7rem;
+  border-left: 2px solid var(--olive);
+}
+
+.post-content p {
+  margin: 0.85rem 0 !important;
+}
+
+.post-content a {
+  color: var(--amber) !important;
+  text-decoration: none;
+  border-bottom: 1px dotted var(--amber-dim);
+  transition: all 0.15s ease;
+}
+
+.post-content a:hover {
+  border-bottom-style: solid;
+  background: rgba(217, 164, 65, 0.1);
+}
+
+.post-content strong {
+  color: var(--sand-100);
+  font-weight: 600;
+}
+
+.post-content ul,
+.post-content ol {
+  padding-left: 1.5rem;
+}
+.post-content li {
+  margin: 0.35rem 0;
+}
+.post-content li::marker {
+  color: var(--amber-dim);
+}
+
+/* ============ 7. 表格 / 引用 / 代码块 ============ */
+
+/* 表格：数据铭牌 */
+.post-content table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: 0.85rem;
+  border: 1px solid var(--metal-edge);
+  border-radius: 2px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.post-content th {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: linear-gradient(
+    180deg,
+    var(--mil-green-600) 0%,
+    var(--mil-green-700) 100%
+  ) !important;
+  color: var(--sand-100) !important;
+  border-bottom: 2px solid var(--metal-edge) !important;
+  padding: 0.6rem 0.8rem !important;
+  text-align: left;
+}
+
+.post-content td {
+  border-bottom: 1px solid rgba(74, 90, 74, 0.3) !important;
+  padding: 0.55rem 0.8rem !important;
+  background: var(--mil-green-800);
+}
+
+.post-content tr:nth-child(even) td {
+  background: var(--mil-green-700);
+}
+
+.post-content tr:last-child td {
+  border-bottom: none !important;
+}
+
+/* 引用块：警示条 */
+.post-content blockquote {
+  border: none !important;
+  border-left: 3px solid var(--olive) !important;
+  background: var(--mil-green-700) !important;
+  padding: 0.8rem 1.1rem !important;
+  margin: 1.2rem 0 !important;
+  border-radius: 0 2px 2px 0;
+  color: var(--theme-fg-dim) !important;
+  font-size: 0.9rem;
+  position: relative;
+}
+
+.post-content blockquote::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--olive);
+  box-shadow: 0 0 6px var(--olive);
+}
+
+/* 代码块 */
+.post-content pre,
+.post-content code {
+  font-family: var(--font-mono) !important;
+}
+
+.post-content pre {
+  border: 1px solid var(--metal-edge) !important;
+  border-radius: 2px !important;
+  background: var(--metal-dark) !important;
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.6);
+}
+
+/* 分割线：战术分隔 */
+.post-content hr {
+  border: none;
+  height: 2px;
+  margin: 2rem 0;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--metal-edge) 0px,
+    var(--metal-edge) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+  opacity: 0.5;
+}
+
+/* ============ 8. 文章页元信息 / 目录 / 评论 ============ */
+.post-meta,
+.post-header .post-meta {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.03em;
+  color: var(--theme-fg-dim) !important;
+}
+
+.post-title {
+  font-family: var(--font-mono) !important;
+  font-size: 1.45rem !important;
+  letter-spacing: 0.02em;
+  color: var(--sand-100) !important;
+  line-height: 1.4 !important;
+}
+
+.breadcrumbs {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+}
+.breadcrumbs a {
+  color: var(--theme-fg-dim) !important;
+}
+.breadcrumbs a:hover {
+  color: var(--amber) !important;
+}
+
+/* 目录 */
+.toc {
+  background: var(--mil-green-700) !important;
+  border: 1px solid var(--metal-edge) !important;
+  border-left: 3px solid var(--olive) !important;
+  border-radius: 2px !important;
+  font-size: 0.84rem;
+}
+.toc .inner {
+  padding: 0.8rem 1rem;
+}
+.toc a {
+  color: var(--theme-fg) !important;
+  border-bottom: none !important;   /* TOC 是页内锚点，不需要正文链接的下划线 */
+}
+.toc a:hover {
+  color: var(--amber) !important;
+  background: none !important;
+}
+details.toc summary {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--sand-200);
+}
+
+/* 上下篇导航 */
+.paginav {
+  border: 1px solid var(--metal-edge) !important;
+  border-radius: 2px !important;
+  background: var(--mil-green-700) !important;
+}
+.paginav a:hover {
+  background: var(--mil-green-600) !important;
+}
+/* 上下篇标题是内部链接，不应继承正文的琥珀下划线样式 */
+.paginav a span {
+  color: var(--theme-fg) !important;
+  border-bottom: none !important;
+}
+.paginav .title {
+  font-family: var(--font-mono);
+  font-size: 0.72rem !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--theme-fg-dim) !important;
+  opacity: 0.8;
+}
+.paginav .prev:hover span,
+.paginav .next:hover span {
+  color: var(--amber) !important;
+}
+
+/* 评论区 */
+.comments h3 {
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--sand-200);
+  font-size: 0.95rem !important;
+}
+
+/* ============ 9. 页脚 ============ */
+.footer {
+  border-top: 2px solid var(--metal-edge) !important;
+  background: linear-gradient(
+    180deg,
+    var(--mil-green-800) 0%,
+    var(--mil-green-900) 100%
+  );
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.03em;
+  margin-top: 3rem;
+  padding: 1.5rem 0 !important;
+}
+
+.footer span {
+  color: var(--theme-fg-dim) !important;
+}
+
+.footer a {
+  color: var(--sand-300) !important;
+}
+.footer a:hover {
+  color: var(--amber) !important;
+}
+
+/* 回到顶部 */
+.top-link {
+  background: var(--mil-green-600) !important;
+  border: 1px solid var(--metal-edge);
+  border-radius: 2px;
+  color: var(--sand-200) !important;
+}
+.top-link:hover {
+  border-color: var(--amber);
+  color: var(--amber) !important;
+}
+
+/* ============ 10. 滚动条 ============ */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--mil-green-900);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--mil-green-500);
+  border: 1px solid var(--metal-edge);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--olive);
+}
+
+/* ============ 11. 选中文本 ============ */
+::selection {
+  background: rgba(217, 164, 65, 0.3);
+  color: var(--sand-100);
+}
+
+/* ============ 12. 响应式微调 ============ */
+@media (max-width: 768px) {
+  .home-info .entry-header h1 {
+    font-size: 1.15rem !important;
+    padding: 0.9rem 1rem 0.9rem 2.2rem;
+  }
+  .post-title {
+    font-size: 1.2rem !important;
+  }
+  .post-content h2 {
+    font-size: 1.02rem !important;
+  }
+  .post-content {
+    font-size: 0.92rem !important;
+  }
+}
