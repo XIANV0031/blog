@@ -6,6 +6,10 @@ theme = 'PaperMod'
 paginate = 10
 enableRobotsTXT = true
 hasCJKLanguage = true
+# 允许渲染 date 位于当前时刻之后的文章。
+# 自动化任务在清晨运行，而简报 front matter 的 date 常写为当日稍晚的时间，
+# 若不开此项，Hugo 会把文章判定为「未来文章」并静默排除出构建产物。
+buildFuture = true
 
 [params]
   description = '每日自动采集境外（Reddit 等）GBB/AEG 资讯，排除全部国内平台'
