@@ -1,19 +1,33 @@
 /* ============================================================
-   战术工装主题 —— 动效层 v2（重构版）
+   战术工装主题 —— 动效层 v3
+   ------------------------------------------------------------
+   【v3 变更摘要】
+   1. **删除全屏几何背景层** —— v2 有 8 个 100~430px 的多边形铺满视口，
+      在手机上（视口 360px）占比超过 100%，糊满屏幕盖住正文。
+      用户反馈：「背景这堆多边形是什么鬼，删了，多边形我是想给这些标签美化用的」。
+      → 多边形改为点缀**标签**（斜角外框 .tag-chip）与卡片角饰。
+   2. **补齐子页面入场动画** —— v2 只覆盖首页（.home-info / .post-entry），
+      文章页完全没有动画。v3 新增面包屑/标题/元信息/目录/正文/h2 逐块/评论区/页脚。
+   3. **位移量整体加大** —— 原 34~62px → 54~160px，多段过冲回弹，更"大开大合"。
+   4. **hover 全面华丽化** —— 导航（斜切擦入 + 实体填充 + 辉光 + 抬升 + 字距张开）、
+      卡片（扫描条 + 斜向光泽扫过 + 边框辉光 + 标题位移 + 摘要提亮）、
+      标签（光泽扫过 + 抬起旋转）、目录、链接、图片、表格行。
+   5. **移动端适配** —— 新增 max-width:860px（位移量减半）与 hover:none（触屏禁用 hover 粘滞）。
+
    ------------------------------------------------------------
    ⚠️ v1 的重大教训（本文件已修正）：
    上一版写了 `@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms } }`，
    在开启了「Windows 设置 → 辅助功能 → 视觉效果 → 动画效果 = 关闭」的机器上，
    浏览器会上报 reduce，导致**整站所有动画被一键掐死**（用户实际遭遇）。
 
-   本版策略改为「分级响应」：
-     · 装饰性动效（几何图形、卡片入场、hover、封面旋转）→ **不受 reduced-motion 影响**
+   本版策略为「分级响应」：
+     · 装饰性动效（卡片入场、hover、封面旋转、指示线）→ **不受 reduced-motion 影响**
        理由：这些动效不承载信息、不引发眩晕风险（无强闪烁/无大幅视差跟踪），
              且是站点视觉设计的主体。removing them 等于毁掉设计。
      · 仅对**功能性动画**做保护（平滑滚动降级）。
      · 若将来要加真正的强动效（全屏视差、快速闪烁），再单独为其加 reduce 保护。
 
-   另一处 v1 问题：paper 的几何层曾被 body.list 背景盖住，本版保留修复。
+   另一处 v1 问题：paper 的装饰层曾被 body.list 背景盖住，本版保留修复。
    ============================================================ */
 
 /* ============ 1. 动效令牌 ============ */
@@ -26,366 +40,548 @@
   --ease-snap: cubic-bezier(0.34, 1.56, 0.64, 1);   /* 过冲回弹 */
 }
 
-/* ============ 2. 几何背景层 ============ */
-/* ⚠️ clip-path 会把 border 一起裁掉 → 描边多边形必须用「外层实心 + 内层背景色」双层结构 */
-.geo-layer {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1;
-  overflow: hidden;
-}
+/* ============ 2. 装饰性斜角图形（原全屏多边形层已移除） ============ */
+/* ⚠️ v3 变更：v2 有一层铺满视口的 fixed 多边形背景（8 个 100~430px 的大图形），
+   在桌面端尚可，但在手机上（视口仅 360px 宽）这些图形占比超过 100%，
+   直接糊满全屏、盖住正文，用户明确反馈「背景这堆多边形是什么鬼，删了」。
+   → 全屏几何层**已整体删除**。
+   多边形的正确用途是**点缀标签/卡片**，见下方 .tag-chip 与第 5 节卡片角饰。 */
 
-.geo-layer > * {
-  position: absolute;
-  will-change: transform;
+/* 标签云/分类标签的斜角外框（多边形用于美化标签，符合用户原意） */
+.tag-chip,
+.terms-tags a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px 6px 11px;
+  font-family: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--sand-200, #cfc9b8);
+  background: linear-gradient(150deg, rgba(217, 164, 65, 0.12), rgba(255, 255, 255, 0.03));
+  border: 1px solid rgba(217, 164, 65, 0.32);
+  /* 右侧切角 —— 六边形语言的微缩版，用于标签 */
+  clip-path: polygon(0 0, calc(100% - 11px) 0, 100% 50%, calc(100% - 11px) 100%, 0 100%);
+  transition:
+    color 0.3s var(--ease-out),
+    background 0.3s var(--ease-out),
+    transform 0.34s var(--ease-snap),
+    letter-spacing 0.3s var(--ease-out);
 }
-
-/* 大六边形轮廓：慢转 */
-.g-hex-lg {
-  top: 20%;
-  right: -190px;
-  width: 430px;
-  height: 430px;
-  background: rgba(125, 140, 92, 0.55);
-  clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
-  animation: g-spin 80s linear infinite;
-}
-.g-hex-lg::after {
+/* 左侧琥珀指示块 */
+.tag-chip::before,
+.terms-tags a::before {
   content: '';
   position: absolute;
-  inset: 3px;
-  background: var(--theme-bg);
-  clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
-}
-
-/* 中六边形实心：漂移 */
-.g-hex-md {
-  top: 64%;
-  left: -130px;
-  width: 290px;
-  height: 290px;
-  background: rgba(44, 61, 49, 0.9);
-  clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
-  animation: g-drift-a 42s ease-in-out infinite;
-}
-
-/* 三角：警示向 */
-.g-tri {
-  top: 52%;
-  left: -30px;
-  width: 155px;
-  height: 155px;
-  background: linear-gradient(135deg, rgba(217, 164, 65, 0.34), rgba(217, 164, 65, 0.06));
-  clip-path: polygon(50% 6%, 96% 92%, 4% 92%);
-  animation: g-drift-b 32s ease-in-out infinite;
-}
-
-/* 菱形 */
-.g-dia {
-  bottom: 11%;
-  right: 4%;
-  width: 105px;
-  height: 105px;
-  background: rgba(125, 140, 92, 0.5);
-  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-  animation: g-drift-c 24s ease-in-out infinite;
-}
-
-/* 楔形：呼应斜角语言 */
-.g-wedge {
-  top: 14%;
-  left: 30%;
-  width: 215px;
-  height: 64px;
-  background: rgba(34, 48, 38, 0.92);
-  clip-path: polygon(0 0, 100% 0, 88% 100%, 0 100%);
-  animation: g-drift-a 50s ease-in-out infinite reverse;
-}
-
-/* 小六边形（新增，增加层次） */
-.g-hex-sm {
-  top: 8%;
-  right: 16%;
-  width: 74px;
-  height: 74px;
-  background: rgba(217, 164, 65, 0.2);
-  clip-path: polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
-  animation: g-drift-c 30s ease-in-out infinite reverse;
-}
-
-/* 十字准星：两条伪元素画线 */
-.g-cross {
-  bottom: 18%;
-  left: 5%;
-  width: 132px;
-  height: 132px;
-  animation: g-drift-c 38s ease-in-out infinite reverse;
-}
-.g-cross::before,
-.g-cross::after {
-  content: '';
-  position: absolute;
-  background: rgba(217, 164, 65, 0.55);
-}
-.g-cross::before {
-  left: 50%; top: 0; width: 1.5px; height: 100%;
-  transform: translateX(-50%);
-}
-.g-cross::after {
-  top: 50%; left: 0; height: 1.5px; width: 100%;
+  left: 0; top: 50%;
+  width: 3px;
+  height: 0;
+  background: var(--amber, #d9a441);
   transform: translateY(-50%);
+  transition: height 0.32s var(--ease-out);
+}
+.tag-chip:hover,
+.terms-tags a:hover {
+  color: #0d1410;
+  background: linear-gradient(150deg, var(--amber, #d9a441), #f0c366);
+  transform: translateY(-3px) scale(1.06);
+  letter-spacing: 0.11em;
+  box-shadow: 0 6px 20px rgba(217, 164, 65, 0.35);
+}
+.tag-chip:hover::before,
+.terms-tags a:hover::before {
+  height: 100%;
+  background: #0d1410;
 }
 
-/* 脉冲圆环：实心圆 + 内层背景色圆做环形 */
-.g-ring {
-  bottom: 18%;
-  left: 5%;
-  width: 132px;
-  height: 132px;
-  background: rgba(217, 164, 65, 0.36);
-  border-radius: 50%;
-  animation: g-ring 18s ease-in-out infinite;
+/* 标签云列表布局：换行 + 间距（PaperMod 默认是紧凑 inline，这里给足呼吸感） */
+.terms-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 9px;
+  padding: 0;
+  margin: 22px 0 0;
+  list-style: none;
 }
-.g-ring::after {
-  content: '';
-  position: absolute;
-  inset: 2px;
-  border-radius: 50%;
-  background: var(--theme-bg);
+.terms-tags li {
+  margin: 0;
+  padding: 0;
+  display: inline-flex;
 }
 
-@keyframes g-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+/* 标签内的数量角标（PaperMod 输出 <sup><strong><sup>N</sup></strong></sup>）
+   → 收成一个小琥珀方块，避免嵌套 sup 把行高撑乱 */
+.terms-tags a sup,
+.terms-tags a strong,
+.terms-tags a sup sup {
+  font-size: inherit;
+  font-weight: 600;
+  line-height: 1;
+  vertical-align: baseline;
+  margin-left: 2px;
+  color: var(--amber, #d9a441);
+  opacity: 0.85;
+  transition: color 0.3s var(--ease-out), opacity 0.3s var(--ease-out);
 }
-@keyframes g-drift-a {
-  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
-  50%      { transform: translate3d(30px, -36px, 0) rotate(9deg); }
+.terms-tags a:hover sup,
+.terms-tags a:hover strong,
+.terms-tags a:hover sup sup {
+  color: #0d1410;
+  opacity: 1;
 }
-@keyframes g-drift-b {
-  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
-  50%      { transform: translate3d(-38px, 26px, 0) rotate(-13deg) scale(1.14); }
-}
-@keyframes g-drift-c {
-  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
-  33%      { transform: translate3d(20px, 24px, 0) rotate(45deg) scale(1.1); }
-  66%      { transform: translate3d(-15px, 13px, 0) rotate(20deg) scale(0.92); }
-}
-@keyframes g-ring {
-  0%, 100% { transform: scale(1);    opacity: 0.85; }
-  50%      { transform: scale(1.38); opacity: 0.28; }
+/* 去掉 PaperMod 默认给 sup 的上下挪位（会让标签变高、错位） */
+.terms-tags a sup {
+  top: 0;
+  position: static;
 }
 
-/* ============ 3. 进入页面动画（强化版） ============ */
+/* 分类标签复用同款外观 */
+.post-tags a,
+.entry-tags a {
+  display: inline-block;
+  padding: 4px 12px 4px 10px;
+  font-family: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--sand-200, #cfc9b8);
+  background: rgba(217, 164, 65, 0.1);
+  border: 1px solid rgba(217, 164, 65, 0.3);
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 50%, calc(100% - 9px) 100%, 0 100%);
+  transition: all 0.3s var(--ease-out);
+}
+.post-tags a:hover,
+.entry-tags a:hover {
+  color: #0d1410;
+  background: var(--amber, #d9a441);
+  transform: translateX(3px);
+}
 
-/* 顶栏：整条落下 + 轻微过冲 */
+/* ============ 3. 进入页面动画（v3 大开大合版） ============ */
+/* v3 变更：位移量整体加大（原 34~62px → 80~160px），
+   并补上**文章子页面**的入场动画（v2 只覆盖首页，用户反馈「子页面没有进入动画」）。 */
+
+/* 顶栏：整条从上方砸落 + 过冲回弹 */
 @keyframes anim-header {
-  0%   { opacity: 0; transform: translate3d(0, -100%, 0); }
-  70%  { opacity: 1; transform: translate3d(0, 4px, 0); }
+  0%   { opacity: 0; transform: translate3d(0, -110%, 0); }
+  62%  { opacity: 1; transform: translate3d(0, 9px, 0); }
+  82%  { transform: translate3d(0, -3px, 0); }
   100% { opacity: 1; transform: translate3d(0, 0, 0); }
 }
-.header {
-  animation: anim-header 0.62s var(--ease-out) both;
-}
+.header { animation: anim-header 0.78s var(--ease-out) both; }
 
-/* 主面板：放大滑入 + 过冲回弹 */
+/* 主面板：大幅放大滑入 */
 @keyframes anim-panel {
-  0%   { opacity: 0; transform: translate3d(0, 52px, 0) scale(0.92); }
-  62%  { opacity: 1; transform: translate3d(0, -6px, 0) scale(1.015); }
+  0%   { opacity: 0; transform: translate3d(0, 108px, 0) scale(0.86); }
+  58%  { opacity: 1; transform: translate3d(0, -14px, 0) scale(1.028); }
+  80%  { transform: translate3d(0, 5px, 0) scale(0.995); }
   100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
-.home-info {
-  animation: anim-panel 0.9s var(--ease-out) both;
-}
+.home-info { animation: anim-panel 1.05s var(--ease-out) both; }
 
-/* 面板标题：从左擦除展开 */
+/* 标题：从左擦除展开 + 轻微放大 */
 @keyframes anim-wipe {
-  0%   { opacity: 0; clip-path: inset(0 100% 0 0); }
-  100% { opacity: 1; clip-path: inset(0 0 0 0); }
+  0%   { opacity: 0; clip-path: inset(0 100% 0 0); transform: scale(0.94); }
+  100% { opacity: 1; clip-path: inset(0 0 0 0); transform: scale(1); }
 }
-.home-info .entry-header h1 {
-  animation: anim-wipe 0.72s var(--ease-out) 0.22s both;
-}
+.home-info .entry-header h1 { animation: anim-wipe 0.9s var(--ease-out) 0.24s both; }
 
-/* 正文块：从左斜切推入 */
+/* 正文块：从左大幅斜切推入 */
 @keyframes anim-wedge {
-  0%   { opacity: 0; transform: translate3d(-62px, 0, 0) skewX(-7deg); }
+  0%   { opacity: 0; transform: translate3d(-120px, 0, 0) skewX(-11deg); }
+  70%  { opacity: 1; transform: translate3d(7px, 0, 0) skewX(1.4deg); }
   100% { opacity: 1; transform: translate3d(0, 0, 0) skewX(0); }
 }
-.home-info .entry-content {
-  animation: anim-wedge 0.74s var(--ease-out) 0.36s both;
-}
+.home-info .entry-content { animation: anim-wedge 0.92s var(--ease-out) 0.4s both; }
 
-/* 底部工具栏：从右推入（与正文错开方向，增加层次） */
+/* 底部工具栏：从右大幅推入（方向错开） */
 @keyframes anim-wedge-r {
-  0%   { opacity: 0; transform: translate3d(62px, 0, 0) skewX(7deg); }
+  0%   { opacity: 0; transform: translate3d(120px, 0, 0) skewX(11deg); }
+  70%  { opacity: 1; transform: translate3d(-6px, 0, 0) skewX(-1.2deg); }
   100% { opacity: 1; transform: translate3d(0, 0, 0) skewX(0); }
 }
-.home-info .entry-footer {
-  animation: anim-wedge-r 0.68s var(--ease-out) 0.48s both;
-}
+.home-info .entry-footer { animation: anim-wedge-r 0.86s var(--ease-out) 0.54s both; }
 
-/* 文章卡片：逐条从下方升起 */
+/* 文章卡片：从下方大幅升起 + 轻微旋转 */
 @keyframes anim-rise {
-  0%   { opacity: 0; transform: translate3d(0, 34px, 0) scale(0.985); }
-  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  0%   { opacity: 0; transform: translate3d(0, 76px, 0) scale(0.955) rotateX(9deg); }
+  68%  { opacity: 1; transform: translate3d(0, -7px, 0) scale(1.006) rotateX(-1.2deg); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1) rotateX(0deg); }
 }
 .post-entry {
-  animation: anim-rise 0.62s var(--ease-out) both;
+  animation: anim-rise 0.82s var(--ease-out) both;
+  transform-origin: center top;
 }
-.post-entry:nth-of-type(1) { animation-delay: 0.54s; }
-.post-entry:nth-of-type(2) { animation-delay: 0.66s; }
-.post-entry:nth-of-type(3) { animation-delay: 0.78s; }
-.post-entry:nth-of-type(4) { animation-delay: 0.90s; }
-.post-entry:nth-of-type(5) { animation-delay: 1.02s; }
-.post-entry:nth-of-type(n + 6) { animation-delay: 1.12s; }
+.post-entry:nth-of-type(1) { animation-delay: 0.58s; }
+.post-entry:nth-of-type(2) { animation-delay: 0.72s; }
+.post-entry:nth-of-type(3) { animation-delay: 0.86s; }
+.post-entry:nth-of-type(4) { animation-delay: 1.00s; }
+.post-entry:nth-of-type(5) { animation-delay: 1.14s; }
+.post-entry:nth-of-type(n + 6) { animation-delay: 1.26s; }
+
+/* ---------- 文章子页面入场动画（v3 新增） ---------- */
+
+/* 面包屑：从左推入 */
+@keyframes anim-crumb {
+  0%   { opacity: 0; transform: translate3d(-46px, 0, 0); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.breadcrumbs { animation: anim-crumb 0.62s var(--ease-out) 0.08s both; }
+
+/* 文章标题：从左擦除 + 放大 */
+@keyframes anim-title-in {
+  0%   { opacity: 0; clip-path: inset(0 100% 0 0); transform: translate3d(0, 30px, 0) scale(0.95); }
+  70%  { opacity: 1; clip-path: inset(0 0 0 0); transform: translate3d(0, -5px, 0) scale(1.012); }
+  100% { opacity: 1; clip-path: inset(0 0 0 0); transform: translate3d(0, 0, 0) scale(1); }
+}
+.post-single .post-title,
+.post-title.entry-hint-parent {
+  animation: anim-title-in 0.96s var(--ease-out) 0.18s both;
+}
+
+/* 文章元信息（日期/字数/作者）：从右斜切推入 */
+@keyframes anim-meta-in {
+  0%   { opacity: 0; transform: translate3d(72px, 0, 0) skewX(9deg); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) skewX(0); }
+}
+.post-meta { animation: anim-meta-in 0.8s var(--ease-out) 0.36s both; }
+
+/* 目录（TOC）：从左侧展开 */
+@keyframes anim-toc-in {
+  0%   { opacity: 0; transform: translate3d(-56px, 0, 0) scaleY(0.9); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0) scaleY(1); }
+}
+.toc { animation: anim-toc-in 0.78s var(--ease-out) 0.42s both; transform-origin: top left; }
+
+/* 正文首块：整块升起 */
+@keyframes anim-body-in {
+  0%   { opacity: 0; transform: translate3d(0, 54px, 0); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.post-content { animation: anim-body-in 0.8s var(--ease-out) 0.5s both; }
+
+/* 正文内的每个 h2 段落：逐块升起（视觉节奏） */
+@keyframes anim-h2-in {
+  0%   { opacity: 0; transform: translate3d(-38px, 0, 0); }
+  100% { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.post-content > h2 { animation: anim-h2-in 0.7s var(--ease-out) both; }
+.post-content > h2:nth-of-type(1) { animation-delay: 0.66s; }
+.post-content > h2:nth-of-type(2) { animation-delay: 0.78s; }
+.post-content > h2:nth-of-type(3) { animation-delay: 0.90s; }
+.post-content > h2:nth-of-type(4) { animation-delay: 1.02s; }
+.post-content > h2:nth-of-type(n + 5) { animation-delay: 1.12s; }
+
+/* 上下篇导航 / 评论区：从下方升起 */
+.post-footer,
+#giscus-container { animation: anim-rise 0.8s var(--ease-out) 0.62s both; }
+
+/* 列表页（归档/标签页）的条目 */
+.archive-entry { animation: anim-rise 0.72s var(--ease-out) both; }
 
 /* 页脚 */
 @keyframes anim-footer {
-  0%   { opacity: 0; transform: translate3d(0, 24px, 0); }
+  0%   { opacity: 0; transform: translate3d(0, 42px, 0); }
   100% { opacity: 1; transform: translate3d(0, 0, 0); }
 }
-.footer {
-  animation: anim-footer 0.6s var(--ease-out) 0.7s both;
-}
+.footer { animation: anim-footer 0.72s var(--ease-out) 0.74s both; }
 
-/* ============ 4. 导航标签悬浮动画（重点强化） ============ */
+/* ============ 4. 导航标签悬浮动画（v3 华丽版） ============ */
+/* v3 变更：单层背景擦入 → 多层叠加（斜切擦入 + 光泽扫过 + 指示线 + 抬升 + 字距张开 + 实体填充） */
 
-#menu {
-  gap: 2px;
-}
+#menu { gap: 3px; }
 
 #menu a {
   position: relative;
   overflow: hidden;
-  padding: 5px 12px;
+  padding: 6px 14px;
   border: 1px solid transparent;
   border-radius: 2px;
+  clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 50%, calc(100% - 7px) 100%, 0 100%);
   transition:
-    color 0.28s var(--ease-out),
-    background 0.28s var(--ease-out),
-    border-color 0.28s var(--ease-out),
-    transform 0.28s var(--ease-snap),
-    letter-spacing 0.28s var(--ease-out);
+    color 0.3s var(--ease-out),
+    border-color 0.3s var(--ease-out),
+    transform 0.36s var(--ease-snap),
+    letter-spacing 0.32s var(--ease-out),
+    box-shadow 0.34s var(--ease-out),
+    background 0.34s var(--ease-out);
 }
 
-/* 悬浮：抬起 + 琥珀描边 + 字距微张 + 背景擦入 */
+/* 层 1：斜切背景从左上斜向擦入 */
 #menu a::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(217, 164, 65, 0.22), rgba(217, 164, 65, 0.07));
-  transform: scaleY(0);
-  transform-origin: bottom;
-  transition: transform 0.3s var(--ease-out);
-  z-index: -1;
+  background: linear-gradient(135deg, rgba(217, 164, 65, 0.34), rgba(217, 164, 65, 0.1) 60%, transparent);
+  transform: translate3d(-101%, -101%, 0) skewX(-18deg);
+  transition: transform 0.44s var(--ease-out);
+  z-index: -2;
 }
 
-/* 底部琥珀指示线：从中间向两侧展开 */
+/* 层 2：底部琥珀指示线（从中间双向展开） */
 #menu a::after {
   content: '';
   position: absolute;
-  left: 12%;
-  right: 12%;
-  bottom: 1px;
+  left: 10%;
+  right: 10%;
+  bottom: 0;
   height: 2px;
-  background: var(--amber);
+  background: linear-gradient(90deg, transparent, var(--amber), transparent);
   transform: scaleX(0);
-  transform-origin: center;
-  transition: transform 0.34s var(--ease-out);
-  box-shadow: 0 0 8px rgba(217, 164, 65, 0.6);
+  transition: transform 0.42s var(--ease-out) 0.06s;
+  box-shadow: 0 0 10px rgba(217, 164, 65, 0.85);
 }
 
+/* 悬浮：抬升 + 实体琥珀填充 + 辉光 + 字距张开 */
 #menu a:hover {
-  color: var(--amber) !important;
-  border-color: rgba(217, 164, 65, 0.5);
-  transform: translateY(-2px);
-  letter-spacing: 0.06em;
+  color: #0d1410 !important;
+  border-color: rgba(240, 195, 102, 0.9);
+  background: linear-gradient(135deg, #f0c366, #d9a441 55%, #c08f2e);
+  transform: translateY(-4px) scale(1.06);
+  letter-spacing: 0.1em;
+  box-shadow:
+    0 6px 22px rgba(217, 164, 65, 0.55),
+    0 0 0 1px rgba(240, 195, 102, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
-#menu a:hover::before { transform: scaleY(1); }
-#menu a:hover::after  { transform: scaleX(1); }
+#menu a:hover::before { transform: translate3d(0, 0, 0) skewX(0deg); }
+#menu a:hover::after  { transform: scaleX(1); background: #0d1410; }
 
-#menu a:active {
-  transform: translateY(0) scale(0.96);
-}
+#menu a:active { transform: translateY(-1px) scale(0.97); }
 
-/* 当前页：常亮指示 */
+/* 当前页：常亮 + 呼吸指示线 */
 #menu .active a {
   color: var(--amber) !important;
-  border-color: rgba(217, 164, 65, 0.35);
+  border-color: rgba(217, 164, 65, 0.45);
+  background: rgba(217, 164, 65, 0.09);
 }
 #menu .active a::after {
   transform: scaleX(1);
-  opacity: 0.55;
+  opacity: 0.7;
+  animation: nav-breathe 2.8s var(--ease-in-out) infinite;
+}
+@keyframes nav-breathe {
+  0%, 100% { opacity: 0.4; box-shadow: 0 0 5px rgba(217, 164, 65, 0.5); }
+  50%      { opacity: 1;   box-shadow: 0 0 14px rgba(217, 164, 65, 1); }
 }
 
-/* ============ 5. 文章卡片悬浮动画 ============ */
+/* 站点标题 / 主题切换按钮也加 hover */
+.logo a:hover {
+  color: var(--amber) !important;
+  letter-spacing: 0.14em;
+  transition: color 0.3s var(--ease-out), letter-spacing 0.3s var(--ease-out);
+}
+#theme-toggle:hover {
+  transform: rotate(180deg) scale(1.15);
+  color: var(--amber);
+  transition: transform 0.5s var(--ease-snap), color 0.3s var(--ease-out);
+}
+
+/* ============ 5. 文章卡片悬浮动画（v3 华丽版） ============ */
+/* v3 变更：单条扫描条 → 五层（左侧扫描条 + 斜向光泽扫过 + 边框辉光 + 标题位移 + 摘要提亮） */
 
 .post-entry {
   position: relative;
   overflow: hidden;
   transition:
-    transform 0.32s var(--ease-out),
-    border-left-color 0.32s var(--ease-out),
-    box-shadow 0.32s var(--ease-out);
+    transform 0.42s var(--ease-out),
+    border-left-color 0.36s var(--ease-out),
+    box-shadow 0.42s var(--ease-out),
+    background 0.42s var(--ease-out);
 }
 
-/* 左侧琥珀扫描条：从顶部纵向展开 */
+/* 层 1：左侧琥珀扫描条（位于卡片边框内侧，避免压住边框） */
 .post-entry::before {
   content: '';
   position: absolute;
-  left: 0; top: 0; bottom: 0;
+  left: 0;
+  top: 0;
+  bottom: 0;
   width: 3px;
-  background: var(--amber);
+  background: linear-gradient(180deg, #f0c366, var(--amber), #a97a24);
   transform: scaleY(0);
   transform-origin: top;
-  transition: transform 0.36s var(--ease-out);
-  box-shadow: 0 0 10px rgba(217, 164, 65, 0.55);
+  transition: transform 0.42s var(--ease-out);
+  box-shadow: 0 0 14px rgba(217, 164, 65, 0.8);
+  z-index: 1;
+}
+
+/* 层 2：斜向光泽扫过（贯穿整卡的对角高光） */
+.post-entry::after {
+  content: '';
+  position: absolute;
+  top: -60%;
+  left: -60%;
+  width: 55%;
+  height: 220%;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(240, 195, 102, 0.14) 38%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(240, 195, 102, 0.14) 62%,
+    transparent 100%
+  );
+  transform: translate3d(-120%, 0, 0) rotate(16deg);
+  transition: transform 0.72s var(--ease-out);
+  pointer-events: none;
   z-index: 2;
 }
 
-/* 斜向光泽扫过 */
-.post-entry .entry-cover,
-.post-entry::after {
-  pointer-events: none;
-}
-
 .post-entry:hover {
-  transform: translateX(6px);
+  transform: translateX(10px) translateY(-3px) scale(1.012);
   border-left-color: var(--amber) !important;
+  background: linear-gradient(100deg, rgba(217, 164, 65, 0.07), transparent 55%);
+  box-shadow:
+    -6px 0 20px rgba(217, 164, 65, 0.16),
+    0 10px 30px rgba(0, 0, 0, 0.45);
 }
 
-.post-entry:hover::before {
-  transform: scaleY(1);
-}
+.post-entry:hover::before { transform: scaleY(1); }
+.post-entry:hover::after  { transform: translate3d(320%, 0, 0) rotate(16deg); }
 
-/* 卡片标题：hover 时右移一点 */
+/* 层 3：标题位移 + 变色 + 字距微张 */
 .post-entry .entry-header h2 {
-  transition: color 0.28s var(--ease-out), transform 0.28s var(--ease-out);
+  transition:
+    color 0.32s var(--ease-out),
+    transform 0.36s var(--ease-out),
+    letter-spacing 0.32s var(--ease-out);
 }
 .post-entry:hover .entry-header h2 {
-  transform: translateX(4px);
+  transform: translateX(8px);
+  color: var(--amber);
+  letter-spacing: 0.012em;
 }
 
-/* ============ 6. 右侧目录 / 标签云悬浮 ============ */
+/* 层 4：摘要文字轻微提亮 */
+.post-entry .entry-content {
+  transition: opacity 0.38s var(--ease-out);
+  opacity: 0.82;
+}
+.post-entry:hover .entry-content { opacity: 1; }
 
+/* 层 5：卡内底部信息同步位移 */
+.post-entry .entry-footer { transition: transform 0.36s var(--ease-out); }
+.post-entry:hover .entry-footer { transform: translateX(8px); }
+
+/* ============ 6. 标签 / 目录 / 链接悬浮（v3 华丽版） ============ */
+
+/* --- 标签云：光泽扫过 + 抬起旋转 --- */
 .tags a,
-.terms-tags a,
 .tag-entry {
+  position: relative;
+  overflow: hidden;
+  display: inline-block;
+  transition:
+    transform 0.32s var(--ease-snap),
+    color 0.3s var(--ease-out),
+    border-color 0.3s var(--ease-out),
+    background 0.3s var(--ease-out),
+    box-shadow 0.32s var(--ease-out);
+}
+.tags a::after,
+.tag-entry::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -70%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  transform: skewX(-20deg);
+  transition: left 0.55s var(--ease-out);
+  pointer-events: none;
+}
+.tags a:hover::after,
+.tag-entry:hover::after { left: 130%; }
+
+.tags a:hover,
+.tag-entry:hover {
+  transform: translateY(-5px) scale(1.1) rotate(-1.5deg);
+  color: #0d1410 !important;
+  border-color: var(--amber) !important;
+  background: linear-gradient(135deg, #f0c366, #d9a441) !important;
+  box-shadow: 0 8px 24px rgba(217, 164, 65, 0.45);
+}
+
+/* --- 目录（TOC）：每条 hover 从右滑入 + 琥珀竖线 --- */
+.toc a {
   position: relative;
   display: inline-block;
   transition:
-    transform 0.26s var(--ease-snap),
-    color 0.26s var(--ease-out),
-    border-color 0.26s var(--ease-out),
-    background 0.26s var(--ease-out);
+    color 0.28s var(--ease-out),
+    transform 0.3s var(--ease-out),
+    padding-left 0.3s var(--ease-out);
 }
-.tags a:hover,
-.terms-tags a:hover {
-  transform: translateY(-3px) scale(1.05);
+.toc a::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 2px;
+  height: 0;
+  background: var(--amber);
+  transform: translateY(-50%);
+  transition: height 0.3s var(--ease-out);
+  box-shadow: 0 0 8px rgba(217, 164, 65, 0.8);
+}
+.toc a:hover {
   color: var(--amber) !important;
-  border-color: var(--amber) !important;
+  transform: translateX(6px);
+  padding-left: 10px;
+}
+.toc a:hover::before { height: 100%; }
+
+/* --- 正文链接：下划线从中间展开 + 高亮 --- */
+.post-content a {
+  position: relative;
+  color: var(--amber);
+  text-decoration: none;
+  transition: color 0.28s var(--ease-out);
+}
+.post-content a::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--amber);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.34s var(--ease-out);
+}
+.post-content a:hover { color: #f0c366; }
+.post-content a:hover::after { transform: scaleX(1); }
+
+/* --- 分页按钮：立体抬升 --- */
+.paginav a {
+  transition:
+    transform 0.32s var(--ease-snap),
+    box-shadow 0.32s var(--ease-out),
+    background 0.3s var(--ease-out),
+    color 0.3s var(--ease-out);
+}
+.paginav a:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(217, 164, 65, 0.5);
+}
+
+/* --- 表格行 hover 高亮 --- */
+.post-content tbody tr {
+  transition: background 0.26s var(--ease-out);
+}
+.post-content tbody tr:hover {
+  background: rgba(217, 164, 65, 0.1);
+}
+
+/* --- 图片 hover 轻微放大 + 边框辉光 --- */
+.post-content img {
+  transition: transform 0.5s var(--ease-out), box-shadow 0.5s var(--ease-out);
+}
+.post-content img:hover {
+  transform: scale(1.025);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(217, 164, 65, 0.45);
 }
 
 /* ============ 7. 顶部战术条纹：持续流动 ============ */
@@ -1005,7 +1201,64 @@ body::after {
   .player-body { gap: 10px; padding: 11px; }
 }
 
-/* ============ 11. 无障碍：只降级功能性动画 ============ */
+/* ============ 11. 移动端 / 窄屏适配（v3 新增，重要） ============ */
+/* v2 的全屏几何层在手机上糊满屏幕（用户实际反馈）。
+   本版已删除该图层，此处继续收窄各动效的位移量，避免窄屏上过度晃动。 */
+@media (max-width: 860px) {
+  /* 入场位移量在窄屏上减半，避免元素滑出视口再回来 */
+  @keyframes anim-panel {
+    0%   { opacity: 0; transform: translate3d(0, 54px, 0) scale(0.93); }
+    100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  }
+  @keyframes anim-wedge {
+    0%   { opacity: 0; transform: translate3d(-58px, 0, 0) skewX(-7deg); }
+    100% { opacity: 1; transform: translate3d(0, 0, 0) skewX(0); }
+  }
+  @keyframes anim-wedge-r {
+    0%   { opacity: 0; transform: translate3d(58px, 0, 0) skewX(7deg); }
+    100% { opacity: 1; transform: translate3d(0, 0, 0) skewX(0); }
+  }
+  @keyframes anim-rise {
+    0%   { opacity: 0; transform: translate3d(0, 38px, 0) scale(0.975); }
+    100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  }
+
+  /* 导航：窄屏上不放大、只保留变色与指示线（避免撑破顶栏） */
+  #menu a:hover {
+    transform: translateY(-2px);
+    letter-spacing: 0.03em;
+  }
+  /* 卡片：窄屏横向位移收敛，避免溢出 */
+  .post-entry:hover {
+    transform: translateX(4px);
+  }
+  .post-entry:hover .entry-header h2 { transform: translateX(3px); }
+  .post-entry:hover .entry-footer   { transform: none; }
+  /* 标签：缩小放大倍数，避免换行错乱 */
+  .tags a:hover,
+  .tag-entry:hover {
+    transform: translateY(-3px) scale(1.05);
+  }
+}
+
+/* 触屏设备：hover 效果在触摸上会"粘住"，改为 :active 才生效 */
+@media (hover: none) {
+  #menu a:hover {
+    color: inherit !important;
+    background: none;
+    transform: none;
+    box-shadow: none;
+    letter-spacing: normal;
+  }
+  .post-entry:hover {
+    transform: none;
+    background: none;
+  }
+  .post-entry:hover::after { transform: translate3d(-120%, 0, 0) rotate(16deg); }
+  .post-entry:hover .entry-header h2 { transform: none; color: inherit; }
+}
+
+/* ============ 12. 无障碍：只降级功能性动画 ============ */
 /* 说明见文件头。装饰性动效（几何图形、卡片入场、hover、封面旋转）**刻意不受影响**，
    因为它们不承载信息、无强闪烁、无大幅视差跟踪，是站点设计的组成部分。
    这里只对真正的功能性行为做温和降级。 */

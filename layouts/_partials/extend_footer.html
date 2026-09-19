@@ -1,20 +1,9 @@
 {{- /* ------------------------------------------------------------------
    页脚扩展注入点（PaperMod 官方 hook，见主题 _partials/footer.html）
-   1. 几何图形背景层（类名 .g-* ，与 tactical-motion.css v2 对应）
-   2. 音频播放器：24 首 · 可展开播放列表 · 旋转唱片封面
+   1. 音频播放器：24 首 · 可展开播放列表 · 旋转唱片封面
+   ⚠️ v3：全屏几何背景层已删除（手机上糊满屏、盖住正文）。
+      多边形改为点缀标签/卡片，见 tactical-motion.css 第 2 节。
    ------------------------------------------------------------------ */ -}}
-
-{{- /* ---------- 几何背景层：只装饰、不接收指针事件 ---------- */ -}}
-<div class="geo-layer" aria-hidden="true">
-  <div class="g g-hex-lg"></div>
-  <div class="g g-hex-md"></div>
-  <div class="g g-tri"></div>
-  <div class="g g-dia"></div>
-  <div class="g g-wedge"></div>
-  <div class="g g-hex-sm"></div>
-  <div class="g g-cross"></div>
-  <div class="g g-ring"></div>
-</div>
 
 {{- /* ---------- 音频播放器 ---------- */ -}}
 {{- /* 曲目清单必须整段包在 {{ `{{ if false }}` }} 之外也无妨；这里直接硬编码。
