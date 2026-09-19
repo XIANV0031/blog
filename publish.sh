@@ -12,6 +12,7 @@
 set -uo pipefail
 
 REPO_DIR="/d/blog-hugo"
+REPO_DIR_WIN="D:\\blog-hugo"   # hugo.exe 是 Windows 程序，必须传 Windows 原生路径
 BRANCH="main"
 HUGO_BIN="/c/Users/Administrator/AppData/Local/Microsoft/WinGet/Links/hugo.exe"
 
@@ -20,9 +21,11 @@ MSG="${1:-brief: $(date +%Y-%m-%d) 境外 GBB/AEG 资讯简报}"
 cd "$REPO_DIR" || { echo "错误：无法进入 $REPO_DIR"; exit 1; }
 
 # 1. 构建校验（本地预检；实际产物由 GitHub Actions 构建）
+# ⚠️ --source 必须用 Windows 路径（D:\blog-hugo），
+#    传 MSYS 风格 /d/blog-hugo 会被解析成 D:\d\blog-hugo 而报路径不存在。
 echo "[1/4] 本地构建校验..."
 if [ -x "$HUGO_BIN" ]; then
-  if ! "$HUGO_BIN" --source "$REPO_DIR" --gc --minify --quiet 2>&1; then
+  if ! "$HUGO_BIN" --source "$REPO_DIR_WIN" --gc --minify --quiet 2>&1; then
     echo "构建失败（出现 ERROR），终止发布。"
     exit 1
   fi
