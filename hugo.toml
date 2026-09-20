@@ -22,7 +22,11 @@ buildFuture = true
   ShowToc = true
   TocOpen = false
   defaultTheme = 'dark'
-  disableThemeToggle = false
+  # 明暗切换按钮已按用户要求移除（2026-09-20）。
+  # ⚠️ 必须为 true，否则主题会输出切换按钮及其监听脚本，
+  #    且 head 内的初始化脚本会读取 localStorage.pref-theme 而可能渲染亮色。
+  #    配合 layouts/_partials/extend_head.html 的强制锁定脚本一起生效。
+  disableThemeToggle = true
   DateFormat = '2006-01-02'
   comments = true          # 开启评论区（模板见 layouts/_partials/comments.html）
 

@@ -1,9 +1,30 @@
 {{- /* ------------------------------------------------------------------
    页脚扩展注入点（PaperMod 官方 hook，见主题 _partials/footer.html）
    1. 音频播放器：24 首 · 可展开播放列表 · 旋转唱片封面
+   2. 导航多边形动效：给 #menu a 注入 .nav-scan 扫描线子元素
    ⚠️ v3：全屏几何背景层已删除（手机上糊满屏、盖住正文）。
       多边形改为点缀标签/卡片，见 tactical-motion.css 第 2 节。
+   ⚠️ v4（2026-09-20）：hover 全面换装多边形叠加。
+      导航的扫描线需要一个真实子元素（伪元素已被 ::before/::after 占用），
+      而 PaperMod 没有提供 header 级的注入 hook，故在此用 JS 注入。
+      这样做比覆盖整个 header.html 更稳 —— 主题升级不会冲突。
    ------------------------------------------------------------------ */ -}}
+
+{{- /* ---------- 导航多边形扫描线注入 ---------- */ -}}
+<script>
+  (function () {
+    var menu = document.getElementById('menu');
+    if (!menu) return;
+    var links = menu.querySelectorAll('a');
+    for (var i = 0; i < links.length; i++) {
+      if (links[i].querySelector('.nav-scan')) continue;
+      var span = document.createElement('span');
+      span.className = 'nav-scan';
+      span.setAttribute('aria-hidden', 'true');
+      links[i].appendChild(span);
+    }
+  })();
+</script>
 
 {{- /* ---------- 音频播放器 ---------- */ -}}
 {{- /* 曲目清单必须整段包在 {{ `{{ if false }}` }} 之外也无妨；这里直接硬编码。

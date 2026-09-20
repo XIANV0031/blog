@@ -1,7 +1,27 @@
 /* ============================================================
-   战术工装主题 —— 动效层 v3
+   战术工装主题 —— 动效层 v4
    ------------------------------------------------------------
-   【v3 变更摘要】
+   【v4 变更摘要（2026-09-20）】
+   用户原话：「动画还能改不，鼠标浮于上方的动画，然后也都改成多边形，
+              就是图里面这几位」，并随附一张卡片设计参考图。
+
+   参考图里的几何语言有三件套：
+     ① 斜角嵌板      —— 面板四角切角，非圆角矩形
+     ② 右上斜纹条    —— /////// 警示纹（repeating-linear-gradient -45deg）
+     ③ 四角折线角标  —— 用 border-top/right 拼出的直角括号
+
+   本次把这套语言全面注入 hover：
+     · 导航项   —— 八边对称切角铭牌，hover 时 clip-path 形变（切角 7px→13px）
+                   + 斜切多边形块撞入 + 右上斜纹警示条展开 + 底部扫描线展开
+     · 文章卡片 —— 新增右上斜纹警示条层；光泽扫过改为「斜纹带」而非纯渐变
+     · 标签     —— hover 时 clip-path 双侧切角从 4px 张开到 9px（形状本身在动）
+     · 新增封面 —— 采集图自动配图，斜角裁切 + 扫描纹叠加 + 战术滤镜
+
+   ⚠️ clip-path 过渡的硬约束：Chrome 要求两端 polygon **顶点数完全一致**，
+      否则会突跳而非平滑插值。本文件所有 clip-path 过渡均保证 8 顶点对 8 顶点。
+
+   ------------------------------------------------------------
+   【v3 变更摘要（保留）】
    1. **删除全屏几何背景层** —— v2 有 8 个 100~430px 的多边形铺满视口，
       在手机上（视口 360px）占比超过 100%，糊满屏幕盖住正文。
       用户反馈：「背景这堆多边形是什么鬼，删了，多边形我是想给这些标签美化用的」。
@@ -9,10 +29,9 @@
    2. **补齐子页面入场动画** —— v2 只覆盖首页（.home-info / .post-entry），
       文章页完全没有动画。v3 新增面包屑/标题/元信息/目录/正文/h2 逐块/评论区/页脚。
    3. **位移量整体加大** —— 原 34~62px → 54~160px，多段过冲回弹，更"大开大合"。
-   4. **hover 全面华丽化** —— 导航（斜切擦入 + 实体填充 + 辉光 + 抬升 + 字距张开）、
-      卡片（扫描条 + 斜向光泽扫过 + 边框辉光 + 标题位移 + 摘要提亮）、
-      标签（光泽扫过 + 抬起旋转）、目录、链接、图片、表格行。
-   5. **移动端适配** —— 新增 max-width:860px（位移量减半）与 hover:none（触屏禁用 hover 粘滞）。
+   4. **hover 全面华丽化** —— 导航、卡片、标签、目录、链接、图片、表格行。
+   5. **移动端适配** —— max-width:860px（位移量减半）与 hover:none（触屏禁用 hover 粘滞）。
+   6. **v4 新增移动端多边形收敛** —— 窄屏切角收小、触屏回退基础形状。
 
    ------------------------------------------------------------
    ⚠️ v1 的重大教训（本文件已修正）：
@@ -136,25 +155,58 @@
   position: static;
 }
 
-/* 分类标签复用同款外观 */
+/* 分类/文章标签：与标签云共用 v4 多边形语言（八边对称切角） */
+/* ⚠️ 注意：这里的 clip-path 必须是**八边形**且与第 6 节的 hover 形变
+   顶点数一致，否则 hover 时 Chrome 会突跳而非平滑过渡。
+   历史坑：v3 此处写的是五边形 `0 0, calc(100%-9px) 0, 100% 50%, ...`，
+   且选择器 `.post-tags a` 比第 6 节的 `.tags a` **更具体**，
+   导致第 6 节的 v4 形变动画被静默压制（实测 clipChanged=false）。 */
 .post-tags a,
 .entry-tags a {
+  position: relative;
   display: inline-block;
-  padding: 4px 12px 4px 10px;
+  padding: 4px 12px 4px 11px;
   font-family: 'JetBrains Mono', ui-monospace, Consolas, monospace;
   font-size: 10.5px;
   letter-spacing: 0.06em;
   color: var(--sand-200, #cfc9b8);
   background: rgba(217, 164, 65, 0.1);
   border: 1px solid rgba(217, 164, 65, 0.3);
-  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 50%, calc(100% - 9px) 100%, 0 100%);
-  transition: all 0.3s var(--ease-out);
+  clip-path: polygon(
+    4px 0,
+    calc(100% - 4px) 0,
+    100% 4px,
+    100% 100%,
+    calc(100% - 4px) 100%,
+    4px 100%,
+    0 calc(100% - 4px),
+    0 4px
+  );
+  transition:
+    clip-path 0.4s var(--ease-out),
+    transform 0.32s var(--ease-snap),
+    color 0.3s var(--ease-out),
+    background 0.3s var(--ease-out),
+    border-color 0.3s var(--ease-out),
+    box-shadow 0.32s var(--ease-out);
 }
 .post-tags a:hover,
 .entry-tags a:hover {
-  color: #0d1410;
-  background: var(--amber, #d9a441);
-  transform: translateX(3px);
+  color: #0d1410 !important;
+  background: linear-gradient(135deg, #f0c366, #d9a441) !important;
+  border-color: var(--amber) !important;
+  clip-path: polygon(
+    9px 0,
+    calc(100% - 9px) 0,
+    100% 9px,
+    100% 100%,
+    calc(100% - 9px) 100%,
+    9px 100%,
+    0 calc(100% - 9px),
+    0 9px
+  );
+  transform: translateY(-3px) scale(1.06);
+  box-shadow: 0 6px 20px rgba(217, 164, 65, 0.45);
 }
 
 /* ============ 3. 进入页面动画（v3 大开大合版） ============ */
@@ -286,19 +338,41 @@
 }
 .footer { animation: anim-footer 0.72s var(--ease-out) 0.74s both; }
 
-/* ============ 4. 导航标签悬浮动画（v3 华丽版） ============ */
-/* v3 变更：单层背景擦入 → 多层叠加（斜切擦入 + 光泽扫过 + 指示线 + 抬升 + 字距张开 + 实体填充） */
+/* ============ 4. 导航标签悬浮动画（v4 多边形换装） ============ */
+/* v3 变更：单层背景擦入 → 多层叠加（斜切擦入 + 光泽扫过 + 指示线 + 抬升 + 字距张开 + 实体填充）
+   ------------------------------------------------------------
+   v4 变更（用户：「hover 也都改成多边形，就是图里这几位」）：
+   把导航项从「右侧单切角的标签条」升级为**对称双切角的八边铭牌**，
+   并在 hover 时同时驱动 5 层几何动作：
+     层 A  clip-path 形变 —— 切角从 7px 张到 13px，形状本身在动
+     层 B  斜切多边形块从左上斜向撞入（::before，skewX 大角度）
+     层 C  右上角斜纹警示条展开（::after，repeating-linear-gradient 斜纹）
+     层 D  底部琥珀扫描线双向展开（.nav-scan，模板注入的 span）
+     层 E  抬升 + 实体琥珀填充 + 辉光 + 字距张开
 
-#menu { gap: 3px; }
+   ⚠️ 关键约束：`clip-path` 的过渡在 Chrome 上**要求两端的 polygon 顶点数一致**
+      否则会突跳而非平滑过渡。这里两端都写 8 个顶点，只改数值。 */
+
+#menu { gap: 4px; }
 
 #menu a {
   position: relative;
   overflow: hidden;
-  padding: 6px 14px;
+  padding: 6px 15px;
   border: 1px solid transparent;
-  border-radius: 2px;
-  clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 50%, calc(100% - 7px) 100%, 0 100%);
+  /* 八边铭牌：左上 + 右下对称双切角 —— 与图里的斜角嵌板语言一致 */
+  clip-path: polygon(
+    7px 0,
+    calc(100% - 7px) 0,
+    100% 7px,
+    100% 100%,
+    calc(100% - 7px) 100%,
+    7px 100%,
+    0 calc(100% - 7px),
+    0 7px
+  );
   transition:
+    clip-path 0.42s var(--ease-out),
     color 0.3s var(--ease-out),
     border-color 0.3s var(--ease-out),
     transform 0.36s var(--ease-snap),
@@ -307,78 +381,127 @@
     background 0.34s var(--ease-out);
 }
 
-/* 层 1：斜切背景从左上斜向擦入 */
+/* 层 B：斜切多边形块从左上斜向撞入（比 v3 的 skewX(-18deg) 更陡，位移更长） */
 #menu a::before {
   content: '';
   position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(217, 164, 65, 0.34), rgba(217, 164, 65, 0.1) 60%, transparent);
-  transform: translate3d(-101%, -101%, 0) skewX(-18deg);
-  transition: transform 0.44s var(--ease-out);
+  inset: -20% -30%;
+  background:
+    linear-gradient(135deg, rgba(240, 195, 102, 0.5), rgba(217, 164, 65, 0.22) 55%, transparent 78%),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.1) 0px,
+      rgba(255, 255, 255, 0.1) 3px,
+      transparent 3px,
+      transparent 9px
+    );
+  transform: translate3d(-118%, -118%, 0) skewX(-26deg);
+  transition: transform 0.5s var(--ease-out);
   z-index: -2;
+  pointer-events: none;
 }
 
-/* 层 2：底部琥珀指示线（从中间双向展开） */
+/* 层 C：右上角斜纹警示条（图里卡片右上那道斜纹的复刻） */
 #menu a::after {
   content: '';
   position: absolute;
-  left: 10%;
-  right: 10%;
+  right: 0;
+  top: 0;
+  width: 26px;
+  height: 9px;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(217, 164, 65, 0.95) 0px,
+    rgba(217, 164, 65, 0.95) 2px,
+    transparent 2px,
+    transparent 5px
+  );
+  transform: translate3d(110%, -110%, 0);
+  transition: transform 0.44s var(--ease-snap) 0.04s;
+  opacity: 0.9;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* 层 D：底部琥珀扫描线双向展开 */
+#menu a .nav-scan {
+  position: absolute;
+  left: 12%;
+  right: 12%;
   bottom: 0;
   height: 2px;
   background: linear-gradient(90deg, transparent, var(--amber), transparent);
   transform: scaleX(0);
-  transition: transform 0.42s var(--ease-out) 0.06s;
-  box-shadow: 0 0 10px rgba(217, 164, 65, 0.85);
+  transition: transform 0.44s var(--ease-out) 0.08s;
+  box-shadow: 0 0 12px rgba(217, 164, 65, 0.95);
+  pointer-events: none;
 }
 
-/* 悬浮：抬升 + 实体琥珀填充 + 辉光 + 字距张开 */
+/* 悬浮：切角张开 + 抬升 + 实体琥珀填充 + 辉光 + 字距张开 */
 #menu a:hover {
+  /* 层 A：切角从 7px 张到 13px，形状本身在形变 */
+  clip-path: polygon(
+    13px 0,
+    calc(100% - 13px) 0,
+    100% 13px,
+    100% 100%,
+    calc(100% - 13px) 100%,
+    13px 100%,
+    0 calc(100% - 13px),
+    0 13px
+  );
   color: #0d1410 !important;
   border-color: rgba(240, 195, 102, 0.9);
   background: linear-gradient(135deg, #f0c366, #d9a441 55%, #c08f2e);
   transform: translateY(-4px) scale(1.06);
   letter-spacing: 0.1em;
   box-shadow:
-    0 6px 22px rgba(217, 164, 65, 0.55),
+    0 7px 24px rgba(217, 164, 65, 0.6),
     0 0 0 1px rgba(240, 195, 102, 0.7),
     inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 #menu a:hover::before { transform: translate3d(0, 0, 0) skewX(0deg); }
-#menu a:hover::after  { transform: scaleX(1); background: #0d1410; }
+#menu a:hover::after  { transform: translate3d(0, 0, 0); }
+#menu a:hover .nav-scan { transform: scaleX(1); background: #0d1410; box-shadow: none; }
 
 #menu a:active { transform: translateY(-1px) scale(0.97); }
 
-/* 当前页：常亮 + 呼吸指示线 */
+/* 当前页：常亮 + 呼吸扫描线 + 常驻警示条 */
 #menu .active a {
   color: var(--amber) !important;
   border-color: rgba(217, 164, 65, 0.45);
   background: rgba(217, 164, 65, 0.09);
 }
-#menu .active a::after {
+#menu .active a .nav-scan {
   transform: scaleX(1);
   opacity: 0.7;
   animation: nav-breathe 2.8s var(--ease-in-out) infinite;
+}
+#menu .active a::after {
+  transform: translate3d(0, 0, 0);
+  opacity: 0.55;
 }
 @keyframes nav-breathe {
   0%, 100% { opacity: 0.4; box-shadow: 0 0 5px rgba(217, 164, 65, 0.5); }
   50%      { opacity: 1;   box-shadow: 0 0 14px rgba(217, 164, 65, 1); }
 }
 
-/* 站点标题 / 主题切换按钮也加 hover */
+/* 站点标题：hover 时点亮 + 字距张开 */
 .logo a:hover {
   color: var(--amber) !important;
   letter-spacing: 0.14em;
   transition: color 0.3s var(--ease-out), letter-spacing 0.3s var(--ease-out);
 }
+/* 主题切换按钮已移除，此规则仅作兜底（万一主题版本更新又输出该按钮） */
 #theme-toggle:hover {
   transform: rotate(180deg) scale(1.15);
   color: var(--amber);
   transition: transform 0.5s var(--ease-snap), color 0.3s var(--ease-out);
 }
 
-/* ============ 5. 文章卡片悬浮动画（v3 华丽版） ============ */
-/* v3 变更：单条扫描条 → 五层（左侧扫描条 + 斜向光泽扫过 + 边框辉光 + 标题位移 + 摘要提亮） */
+/* ============ 5. 文章卡片悬浮动画（v4 多边形换装） ============ */
+/* v3 变更：单条扫描条 → 五层（左侧扫描条 + 斜向光泽扫过 + 边框辉光 + 标题位移 + 摘要提亮）
+   v4 变更：新增「右上角斜纹警示条」层，并把光泽扫过改为斜纹带（多边形元素参与动效）。 */
 
 .post-entry {
   position: relative;
@@ -389,6 +512,9 @@
     box-shadow 0.42s var(--ease-out),
     background 0.42s var(--ease-out);
 }
+
+/* 警示条的定位上下文（非定位元素无法承载绝对定位的 ::after） */
+.post-entry .entry-header { position: relative; }
 
 /* 层 1：左侧琥珀扫描条（位于卡片边框内侧，避免压住边框） */
 .post-entry::before {
@@ -414,18 +540,51 @@
   left: -60%;
   width: 55%;
   height: 220%;
-  background: linear-gradient(
-    100deg,
-    transparent 0%,
-    rgba(240, 195, 102, 0.14) 38%,
-    rgba(255, 255, 255, 0.22) 50%,
-    rgba(240, 195, 102, 0.14) 62%,
-    transparent 100%
-  );
+  background:
+    linear-gradient(
+      100deg,
+      transparent 0%,
+      rgba(240, 195, 102, 0.14) 38%,
+      rgba(255, 255, 255, 0.22) 50%,
+      rgba(240, 195, 102, 0.14) 62%,
+      transparent 100%
+    ),
+    /* v4：光泽里叠一道斜纹，让扫过的是「多边形斜纹带」而非纯渐变 */
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.07) 0px,
+      rgba(255, 255, 255, 0.07) 4px,
+      transparent 4px,
+      transparent 11px
+    );
   transform: translate3d(-120%, 0, 0) rotate(16deg);
   transition: transform 0.72s var(--ease-out);
   pointer-events: none;
   z-index: 2;
+}
+
+/* v4 新增：卡片右上角斜纹警示条（复刻图里卡片右上那道 ///// ） */
+.post-entry .entry-header::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 34px;
+  height: 10px;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(217, 164, 65, 0.85) 0px,
+    rgba(217, 164, 65, 0.85) 2px,
+    transparent 2px,
+    transparent 6px
+  );
+  opacity: 0.28;
+  transform: translate3d(8px, -4px, 0) scaleX(0.6);
+  transform-origin: right center;
+  transition:
+    opacity 0.4s var(--ease-out),
+    transform 0.46s var(--ease-snap);
+  pointer-events: none;
 }
 
 .post-entry:hover {
@@ -439,6 +598,11 @@
 
 .post-entry:hover::before { transform: scaleY(1); }
 .post-entry:hover::after  { transform: translate3d(320%, 0, 0) rotate(16deg); }
+/* 警示条展开 + 提亮 */
+.post-entry:hover .entry-header::after {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scaleX(1);
+}
 
 /* 层 3：标题位移 + 变色 + 字距微张 */
 .post-entry .entry-header h2 {
@@ -464,15 +628,30 @@
 .post-entry .entry-footer { transition: transform 0.36s var(--ease-out); }
 .post-entry:hover .entry-footer { transform: translateX(8px); }
 
-/* ============ 6. 标签 / 目录 / 链接悬浮（v3 华丽版） ============ */
+/* ============ 6. 标签 / 目录 / 链接悬浮（v4 多边形换装） ============ */
+/* v4 变更：标签的 hover 从「抬起旋转」升级为**形状形变** ——
+   clip-path 双侧切角从 4px 张开到 9px，同时扫过一道斜纹光泽。
+   目录/正文链接保持 v3 行为（它们体量小，加多边形会糊）。 */
 
-/* --- 标签云：光泽扫过 + 抬起旋转 --- */
+/* --- 标签云：多边形形变 + 斜纹光泽扫过 --- */
 .tags a,
 .tag-entry {
   position: relative;
   overflow: hidden;
   display: inline-block;
+  /* 起始形状：左右对称小切角的八边形 */
+  clip-path: polygon(
+    4px 0,
+    calc(100% - 4px) 0,
+    100% 4px,
+    100% 100%,
+    calc(100% - 4px) 100%,
+    4px 100%,
+    0 calc(100% - 4px),
+    0 4px
+  );
   transition:
+    clip-path 0.4s var(--ease-out),
     transform 0.32s var(--ease-snap),
     color 0.3s var(--ease-out),
     border-color 0.3s var(--ease-out),
@@ -487,7 +666,15 @@
   left: -70%;
   width: 45%;
   height: 100%;
-  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  background:
+    linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.5), transparent),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.16) 0px,
+      rgba(255, 255, 255, 0.16) 2px,
+      transparent 2px,
+      transparent 6px
+    );
   transform: skewX(-20deg);
   transition: left 0.55s var(--ease-out);
   pointer-events: none;
@@ -497,7 +684,18 @@
 
 .tags a:hover,
 .tag-entry:hover {
-  transform: translateY(-5px) scale(1.1) rotate(-1.5deg);
+  /* 形状形变：切角张开（与 hover 前顶点数一致 = 8，才能平滑过渡） */
+  clip-path: polygon(
+    9px 0,
+    calc(100% - 9px) 0,
+    100% 9px,
+    100% 100%,
+    calc(100% - 9px) 100%,
+    9px 100%,
+    0 calc(100% - 9px),
+    0 9px
+  );
+  transform: translateY(-5px) scale(1.08) rotate(-1.2deg);
   color: #0d1410 !important;
   border-color: var(--amber) !important;
   background: linear-gradient(135deg, #f0c366, #d9a441) !important;
@@ -1239,6 +1437,44 @@ body::after {
   .tag-entry:hover {
     transform: translateY(-3px) scale(1.05);
   }
+  /* v4：窄屏上多边形切角收小，避免小标签被切掉太多内容 */
+  #menu a {
+    clip-path: polygon(
+      5px 0,
+      calc(100% - 5px) 0,
+      100% 5px,
+      100% 100%,
+      calc(100% - 5px) 100%,
+      5px 100%,
+      0 calc(100% - 5px),
+      0 5px
+    );
+  }
+  #menu a:hover {
+    clip-path: polygon(
+      8px 0,
+      calc(100% - 8px) 0,
+      100% 8px,
+      100% 100%,
+      calc(100% - 8px) 100%,
+      8px 100%,
+      0 calc(100% - 8px),
+      0 8px
+    );
+  }
+  .tags a:hover,
+  .tag-entry:hover {
+    clip-path: polygon(
+      6px 0,
+      calc(100% - 6px) 0,
+      100% 6px,
+      100% 100%,
+      calc(100% - 6px) 100%,
+      6px 100%,
+      0 calc(100% - 6px),
+      0 6px
+    );
+  }
 }
 
 /* 触屏设备：hover 效果在触摸上会"粘住"，改为 :active 才生效 */
@@ -1250,12 +1486,34 @@ body::after {
     box-shadow: none;
     letter-spacing: normal;
   }
+  /* v4：触屏上多边形也回到基础形状，避免点一下形状就"卡"在张开态 */
+  #menu a:hover,
+  .tags a:hover,
+  .tag-entry:hover {
+    clip-path: polygon(
+      4px 0,
+      calc(100% - 4px) 0,
+      100% 4px,
+      100% 100%,
+      calc(100% - 4px) 100%,
+      4px 100%,
+      0 calc(100% - 4px),
+      0 4px
+    );
+  }
+  #menu a:hover .nav-scan { transform: scaleX(0); background: var(--amber); box-shadow: 0 0 12px rgba(217, 164, 65, 0.95); }
+  #menu a:hover::after  { transform: translate3d(110%, -110%, 0); }
+  #menu a:hover::before { transform: translate3d(-118%, -118%, 0) skewX(-26deg); }
   .post-entry:hover {
     transform: none;
     background: none;
   }
   .post-entry:hover::after { transform: translate3d(-120%, 0, 0) rotate(16deg); }
   .post-entry:hover .entry-header h2 { transform: none; color: inherit; }
+  .post-entry:hover .entry-header::after {
+    opacity: 0.28;
+    transform: translate3d(8px, -4px, 0) scaleX(0.6);
+  }
 }
 
 /* ============ 12. 无障碍：只降级功能性动画 ============ */

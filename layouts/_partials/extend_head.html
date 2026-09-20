@@ -12,3 +12,42 @@
 
 {{- /* 主题色，供移动端浏览器地址栏着色 */ -}}
 <meta name="theme-color" content="#0d1410">
+
+{{- /* ------------------------------------------------------------------
+    强制锁定暗色主题（2026-09-20）
+    ------------------------------------------------------------------
+    背景：导航栏的明暗切换按钮已按用户要求移除。但仅隐藏按钮是不够的 ——
+    PaperMod 的 head.html 里那段初始化脚本会先读 localStorage.pref-theme，
+    若访客此前切过亮色（或系统偏好亮色），页面仍会渲染成亮色，与战术工装
+    主题（军绿+沙色，为暗色设计）严重不符。
+
+    本段做三件事：
+      1. 抢占式锁定 data-theme=dark（置于 head 内，早于 body 渲染，
+         避免"先亮后暗"的闪烁）。
+      2. 清除 localStorage 里残留的 pref-theme，防止后续脚本再据此改回。
+      3. 补一条 CSS 兜底：即使 data-theme 被改成 light，变量仍取暗色值。
+
+    ⚠️ 必须配合 hugo.toml 的 disableThemeToggle = true 一起生效，
+       否则主题仍会输出自带的切换按钮与其监听脚本。
+    ------------------------------------------------------------------ */ -}}
+<script>
+  (function () {
+    try { localStorage.removeItem('pref-theme'); } catch (e) {}
+    document.documentElement.dataset.theme = 'dark';
+  })();
+</script>
+<style>
+  /* 兜底：无论 data-theme 被改成什么，都按暗色变量渲染 */
+  :root,
+  :root[data-theme='light'],
+  :root[data-theme='dark'],
+  :root[data-theme='auto'] {
+    color-scheme: dark;
+  }
+  /* 万一主题仍输出了切换按钮，直接藏掉（双保险） */
+  #theme-toggle,
+  .theme-toggle,
+  .logo-switches .nav-sep {
+    display: none !important;
+  }
+</style>

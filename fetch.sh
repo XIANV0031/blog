@@ -7,7 +7,15 @@
 # 用法：bash fetch.sh [输出目录]
 #       默认输出到 /d/blog-hugo/.cache/fetch
 #
+# 产物：
+#   *.rss / *.xml / *.html  原始素材（供 AI 读取撰写简报）
+#   pa_official/*.jpg       **官方贴题配图**（Popular Airsoft 官方产品图，首选）
+#   covers-map.json         标题 → 配图 映射表（含置信度，供选图参考）
+#   covers/cover-NN.jpg     Reddit 兜底图（官方源不可用时使用）
+#
 # 前置：Clash Verge 需运行（端口 127.0.0.1:7897）
+# 可选：环境变量 PYBIN 指向 Python 解释器（用于官方图语义匹配）。
+#       未设置时自动探测常见路径，全部失败则跳过轨 1。
 #
 # ⚠️ 两个关键实现约束（踩过坑，勿改）：
 #   1. 必须用 shell 重定向 `>` 落盘，不能用 `curl -o`。
@@ -19,6 +27,32 @@ set -uo pipefail
 PORT=7897
 OUT_DIR="${1:-/d/blog-hugo/.cache/fetch}"
 UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+
+# Python 解释器自动探测（用于封面语义匹配；找不到不影响主流程）
+if [ -z "${PYBIN:-}" ]; then
+  for cand in \
+    "/c/Users/Administrator/.workbuddy/binaries/python/envs/default/python.exe" \
+    "/c/Users/Administrator/.workbuddy/binaries/python/envs/default/Scripts/python.exe" \
+    "/c/Users/Administrator/.workbuddy/binaries/python/versions/3.13.12/python.exe" \
+    "$(command -v python3 2>/dev/null)" \
+    "$(command -v python 2>/dev/null)"
+  do
+    [ -n "$cand" ] && [ -x "$cand" ] && PYBIN="$cand" && break
+  done
+fi
+
+# ⚠️ MSYS 路径 → Windows 原生路径
+#    Python / hugo 都是 Windows 程序，不认 `/d/blog-hugo/xxx` 这种 MSYS 风格路径
+#    （会报 FileNotFoundError，且路径被解析成 `D:\d\blog-hugo\...`）。
+#    cygpath 在 Git Bash 下可用；不可用时退化为手动替换。
+winpath() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$1"
+  else
+    # 手动：/d/foo/bar -> D:\foo\bar
+    echo "$1" | sed -E 's|^/([a-zA-Z])/|\1:/|' | tr '/' '\\'
+  fi
+}
 
 # ---------- 1. 代理探活 ----------
 echo "[1/4] 探测代理端口 $PORT ..."
@@ -66,20 +100,209 @@ fetch "https://www.reddit.com/r/airsoft/new/.rss" "$OUT_DIR/airsoft-new.rss" "r/
 sleep 25
 
 # ---------- 3. 采集境外媒体 ----------
-echo "[3/4] 采集境外媒体..."
+echo "[3/5] 采集境外媒体..."
 # Popular Airsoft 是 Drupal 站：/rss.xml 才是真 feed（/feed 返回网页）
 fetch "https://www.popularairsoft.com/rss.xml" "$OUT_DIR/popularairsoft.xml" "popularairsoft"
 fetch "https://www.hyperdouraku.com/" "$OUT_DIR/hyperdouraku.html" "hyperdouraku"
 
-# ---------- 4. 汇总 ----------
-echo "[4/4] 采集完成。素材目录：$OUT_DIR"
+# ---------- 4. 下载封面候选图 ----------
+# 用途：文章列表页与详情页顶部的封面大图。
+#
+# 【v2 改造（2026-09-20）—— 从「随机热点图」升级为「贴题官方图」】
+# 用户要求：封面必须与文章主题对应。例如简报写「东京丸井泷奈之枪」，
+#          封面就该是那把枪，而不是随便一张社群实装照。
+#
+# 两条轨道：
+#   轨 1（主）：Popular Airsoft 官方产品图 —— 1000×714 真 JPEG，
+#               按 feed 标题做**语义匹配**选图，贴题度最高。
+#   轨 2（备）：Reddit 当期热点图 —— 官方源失败时兜底。
+#
+# ⚠️ 实现约束（踩坑记录）：
+#   1. Reddit 的 thumbnail URL 带 `&amp;` HTML 实体，必须先反转义再请求；
+#      否则 curl 会把 &amp; 当成路径的一部分，返回 404。
+#   2. Reddit 图床（external-preview.redd.it / preview.redd.it）校验 Referer 与 UA，
+#      必须带浏览器 UA；Referer 不必带。
+#   3. 图片走 shell 重定向落盘（与正文采集同理，`curl -o` 在沙箱下不可靠）。
+#   4. 必须用**魔数**校验图片类型，不能用 %{content_type} ——
+#      本机 curl 经代理隧道时该字段恒为空。（JPEG=ffd8ff / PNG=89504e47）
+COVER_DIR="$OUT_DIR/covers"
+mkdir -p "$COVER_DIR"
+COVER_N=6
+PA_DIR="$OUT_DIR/pa_official"      # 轨 1：Popular Airsoft 官方图
+mkdir -p "$PA_DIR"
+echo "[4/5] 下载封面候选图..."
+
+# ---------- 轨 1：Popular Airsoft 官方产品图 ----------
+# 步骤：① 抓一则文章页（含全部最新文章缩略图）
+#       ② 用 fetch_covers.py 按标题语义匹配，产出「标题 → 图片」映射
+#       ③ 按映射下载到 pa_official/，文件名沿用原图名（含产品信息）
+#
+# ⚠️ 为什么匹配不用「feed 顺序 ↔ 图片顺序」：
+#    实测该映射不同步（页面首图对应 feed 第 3 条），错配率 5/10。
+#    改用语义打分后 10/10 全中，其中 8 条高置信。详见 fetch_covers.py 注释。
+if [ -s "$OUT_DIR/popularairsoft.xml" ]; then
+  PA_PAGE="$OUT_DIR/_pa_page.html"
+  # 抓 feed 首条文章作为「最新文章列表」样本页
+  pa_first=$(grep -oE '<link>[^<]*popularairsoft[^<]*</link>' "$OUT_DIR/popularairsoft.xml" 2>/dev/null \
+             | sed 's/<link>//; s/<\/link>//' | head -1)
+  if [ -n "$pa_first" ]; then
+    curl -sS -L -m 30 -A "$UA" -x "$PROXY" "$pa_first" > "$PA_PAGE" 2>/dev/null
+    echo "      已取 Popular Airsoft 样本页（$(wc -c < "$PA_PAGE" | tr -d ' ') bytes）"
+  fi
+
+  MAP_JSON="$OUT_DIR/covers-map.json"
+  if [ -s "$PA_PAGE" ]; then
+    # fetch_covers.py 只依赖标准库，任意 Python 均可
+    # ⚠️ 路径必须转 Windows 原生格式，否则 Python 报 FileNotFoundError
+    if [ -n "${PYBIN:-}" ] && [ -x "$PYBIN" ]; then
+      SCRIPT_PY="$(winpath "$(dirname "$0")/.cache/tools/fetch_covers.py")"
+      FEED_W="$(winpath "$OUT_DIR/popularairsoft.xml")"
+      PAGE_W="$(winpath "$PA_PAGE")"
+      MAP_W="$(winpath "$MAP_JSON")"
+      "$PYBIN" "$SCRIPT_PY" "$FEED_W" "$PAGE_W" "$MAP_W" 2>&1 \
+        | grep -E '^(OK|~|\?|!!|配图成功|feed 条目)' || true
+    else
+      echo "      （未找到 Python，跳过官方图语义匹配）"
+    fi
+  fi
+
+  # 依据映射下载官方图
+  if [ -s "$MAP_JSON" ]; then
+    # 用 Python 解析 JSON（避免 jq 依赖），输出 "urlpath<TAB>basename"
+    if [ -n "${PYBIN:-}" ] && [ -x "$PYBIN" ]; then
+      MAP_W2="$(winpath "$MAP_JSON")"
+      "$PYBIN" -c '
+import json,sys,os
+d=json.load(open(sys.argv[1],encoding="utf-8"))
+for r in d:
+    p=r.get("image") or ""
+    if p: print(p+"\t"+os.path.basename(p))
+' "$MAP_W2" \
+      | while IFS=$'\t' read -r upath bname; do
+          [ -z "$upath" ] && continue
+          dst="$PA_DIR/$bname"
+          [ -s "$dst" ] && continue
+          curl -sS -L -m 40 -A "$UA" -x "$PROXY" "https://www.popularairsoft.com$upath" > "$dst" 2>/dev/null
+          sz=$(wc -c < "$dst" 2>/dev/null | tr -d ' ')
+          mg=$(head -c 3 "$dst" 2>/dev/null | od -An -tx1 | tr -d ' \n')
+          if [ "$mg" = "ffd8ff" ] && [ "${sz:-0}" -gt 30000 ]; then
+            echo "      [官方] $bname  ${sz}B"
+          else
+            rm -f "$dst"
+          fi
+        done
+    fi
+    pa_got=$(find "$PA_DIR" -maxdepth 1 -name '*.jpg' 2>/dev/null | wc -l | tr -d ' ')
+    echo "      → 官方图目录：$PA_DIR（$pa_got 张）"
+  fi
+fi
+
+# ---------- 轨 2（兜底）：Reddit 当期热点图 ----------
+# 仅在官方源不可用时使用。命名 cover-NN.jpg，便于与官方图区分。
+echo "      [轨2] 采集 Reddit 兜底图..."
+
+# 从 Atom feed 抽取 media:thumbnail URL，反转义 HTML 实体，去重。
+#
+# ⚠️ Reddit feed 的缩略图有两种规格（实测 25 条中 13 大 / 12 小）：
+#     · width=640  → 可做封面的合格大图
+#     · width=140  → 方形/条形缩略图，仅 2~7KB，做封面必糊
+#   且**不能改 width 参数升采样** —— URL 里的 `s=` 是签名，改任何参数都返回 403。
+#   因此只能先筛选大图，再下载。
+extract_thumbs() {
+  # 入参：rss 文件路径；输出：每行一个已反转义的大图 URL（仅 width>=640）
+  grep -o 'media:thumbnail url="[^"]*"' "$1" 2>/dev/null \
+    | sed 's/media:thumbnail url="//; s/"$//' \
+    | sed 's/&amp;/\&/g' \
+    | grep -E 'width=(640|960|1080|[1-9][0-9]{3,})' \
+    | awk '!seen[$0]++'
+}
+
+THUMBS="$COVER_DIR/.thumbs.$$"
+: > "$THUMBS"
+# 优先用 r/airsoft/top（热度最高），不足时补 airsoftmarket
+for src in "$OUT_DIR/airsoft.rss" "$OUT_DIR/airsoftmarket.rss"; do
+  [ -s "$src" ] || continue
+  extract_thumbs "$src" >> "$THUMBS"
+done
+
+if [ -s "$THUMBS" ]; then
+  while IFS= read -r url; do
+    [ -z "$url" ] && continue
+    slot=$(find "$COVER_DIR" -maxdepth 1 -name 'cover-*.jpg' 2>/dev/null | wc -l | tr -d ' ')
+    [ "$slot" -ge "$COVER_N" ] && break
+    out="$COVER_DIR/cover-$(printf '%02d' "$((slot + 1))").jpg"
+
+    # ⚠️ 不要用 %{content_type} 判断 —— 本机 curl 经代理隧道时该字段恒为空。
+    #    改用「魔数 + 体积」双闸：JPEG=ffd8ff / PNG=89504e47
+    curl -sS -L -m 40 -A "$UA" -x "$PROXY" "$url" > "$out" 2>/dev/null
+    size=$(wc -c < "$out" 2>/dev/null | tr -d ' ')
+    magic=$(head -c 4 "$out" 2>/dev/null | od -An -tx1 | tr -d ' \n')
+
+    case "$magic" in
+      ffd8ff*)  kind="jpeg" ;;
+      89504e47) kind="png";  mv "$out" "${out%.jpg}.png"; out="${out%.jpg}.png" ;;
+      *)        kind="" ;;
+    esac
+    base=$(basename "$out")
+
+    # 140px 级缩略图通常 <8KB，画质不足以做封面 → 同时要求体积达标
+    if [ -z "$kind" ]; then
+      echo "      ${base%.*}.jpg 非图片（magic=${magic:-空}），丢弃"
+      rm -f "$out"
+    elif [ "${size:-0}" -lt 15360 ]; then
+      echo "      ${base%.*}.jpg 体积过小（${size}B，不足做封面），丢弃"
+      rm -f "$out"
+    else
+      echo "      $base -> $kind, ${size} bytes"
+    fi
+  done < "$THUMBS"
+  rm -f "$THUMBS"
+else
+  echo "      未从 feed 中解析到图片链接（feed 可能为空或被限流）"
+fi
+
+# ---------- 5. 汇总 ----------
+echo "[5/5] 采集完成。素材目录：$OUT_DIR"
 echo
 echo "--- 素材清单 ---"
 for f in "$OUT_DIR"/*; do
   [ -f "$f" ] && echo "  $(basename "$f"): $(wc -c < "$f" | tr -d ' ') bytes"
 done
+
+# 轨 1：官方贴题图（首选）
+if [ -d "$PA_DIR" ]; then
+  pa_count=$(find "$PA_DIR" -maxdepth 1 -name '*.jpg' 2>/dev/null | wc -l | tr -d ' ')
+  echo "--- 官方贴题图（$pa_count 张，**首选**）：$PA_DIR ---"
+  find "$PA_DIR" -maxdepth 1 -name '*.jpg' 2>/dev/null | sort | while read -r c; do
+    echo "      $(basename "$c")  $(wc -c < "$c" | tr -d ' ') bytes"
+  done
+  [ -s "$OUT_DIR/covers-map.json" ] && echo "      映射表：$OUT_DIR/covers-map.json（标题 → 图片 + 置信度）"
+fi
+
+# 轨 2：Reddit 兜底图
+if [ -d "$COVER_DIR" ]; then
+  cover_count=$(find "$COVER_DIR" -maxdepth 1 \( -name 'cover-*.jpg' -o -name 'cover-*.png' \) 2>/dev/null | wc -l | tr -d ' ')
+  echo "--- Reddit 兜底图（$cover_count 张）：$COVER_DIR ---"
+  find "$COVER_DIR" -maxdepth 1 \( -name 'cover-*.jpg' -o -name 'cover-*.png' \) 2>/dev/null \
+    | sort | while read -r c; do
+      echo "      $(basename "$c")  $(wc -c < "$c" | tr -d ' ') bytes"
+    done
+fi
+
 echo
-echo "下一步：读取素材撰写简报 markdown 到 content/posts/，然后运行 publish.sh"
+echo "下一步："
+echo "  1) 读 covers-map.json，按文章主题选定官方图（置信度 high 可直接用；"
+echo "     medium/low 需人工确认；标记「重复」的说明多篇同主题，择一或换图）"
+echo "  2) 若某篇文章在 2026 年目录下无对应官方图（多为更早的产品），"
+echo "     可另在 tokyo-marui.co.jp / hyperdouraku.com 找官方图："
+echo "       · 东京丸井：https://www.tokyo-marui.co.jp/appimg/product/p_main_*.jpg"
+echo "       · Hyperdouraku：https://www.hyperdouraku.com/airgun/<slug>/images/for_top305.jpg"
+echo "  3) 复制选定图到 static/images/covers/<日期>.jpg"
+echo "     ⚠️ 采集图比例极不统一（实测 0.56 ~ 3.81）。"
+echo "        入库前必须统一宽度到 1600px，最终比例由 CSS 的"
+echo "        aspect-ratio + object-fit:cover 归一化。"
+echo "  4) 在 front matter 写 cover.image / cover.alt / cover.caption"
+echo "  5) 运行 publish.sh"
 
 # 退出码约定：
 #   0 = 正常（即使部分源失败，只要主力源有数据）
