@@ -1,0 +1,558 @@
+/* ============================================================
+   战术工装主题 —— 动态层 v5
+   ------------------------------------------------------------
+   【v5 新增（2026-09-20）】用户原话：
+     「加个动态背景、鼠标轨迹，动画能不能再放开点，
+       鼠标挪到上面会变大什么的，现在图片也太大了，
+       先小，鼠标挪上去再放大呗」
+
+   本文件只做三件事，与 v4 的 hover 体系**职责分离**：
+     · 第 20 节  动态背景（雷达网格 + 扫掠光带）
+     · 第 21 节  鼠标轨迹（柔和光晕跟随，lerp 插值）
+     · 第 22 节  图片尺寸重塑（默认收窄 62%，hover 放大到 92%）
+   动画「再放开」的部分通过第 23 节的强度增强层实现。
+
+   ------------------------------------------------------------
+   ⚠️⚠️ 三条来自前几版的硬约束（改本文件前必读）
+
+   1) **绝不做铺屏多边形背景。**
+      v2 有 8 个 100~430px 多边形铺满视口，手机上（360px 宽）占比超 100%，
+      糊满全屏盖住正文。用户原话：「背景这堆多边形是什么鬼，删了，
+      多边形我是想给这些标签美化用的」。
+      → 本版动态背景用**网格线 + 光带**这种极淡、结构性的元素，
+        不用大色块图形，且整体透明度压到 0.5 以下。
+
+   2) **绝不用 `@media (prefers-reduced-motion: reduce) { * { ... } }` 一刀切。**
+      v1 那样写，会让「Windows 辅助功能 → 动画效果 = 关闭」的机器上
+      **整站所有动画被一键掐死**（用户实际遭遇过）。
+      → 本版延续 v4 的「分级响应」：装饰性动效不受 reduce 影响，
+        只对功能性动画（平滑滚动）降级。
+        理由：这些动效不承载信息、无强闪烁、无大幅视差跟踪，
+              不构成眩晕风险，且是站点视觉设计的主体。
+
+   3) **`body::before` / `body::after` 已被占用**
+      （CRT 扫描线 + 顶部沙色条纹，见 tactical.css）。
+      → 动态背景必须用**独立 DOM 元素**承载，不能抢伪元素。
+
+   ------------------------------------------------------------
+   ⚠️ 性能约束（本机 GPU 弱，GT 1030）
+   动态背景是 `position: fixed` + 大尺寸，若用会触发 repaint 的属性
+   逐帧动画，会拖垮滚动帧率。故：
+     · 只用 `transform` / `opacity`（走合成层，不 repaint）
+     · 网格用一张 no-repeat 的 repeating-linear-gradient 做平移，
+       而不是逐条 DOM 线
+     · 光带用 transform: rotate + translate 驱动，不用 background-position
+     · 移动端与触屏直接关闭动态背景（见文末第 24 节）
+   ============================================================ */
+
+/* ============ 20. 动态背景：雷达网格 + 扫掠光带 ============ */
+
+/* 承载层：fixed 铺满视口，永远在正文之下、body 背景之上 */
+.tac-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  /* 自建合成层，避免影响主线程绘制 */
+  will-change: transform;
+  contain: strict;
+}
+
+/* --- 20.1 雷达网格：缓慢对角平移 ---
+   ⚠️ 用 background-position 做平移动画会触发 repaint，但网格是
+      极简单的 repeating-linear-gradient 且只在 fixed 层里，
+      实测开销可接受。若日后卡顿，改为 transform 平移一个
+      放大 2 倍的网格层（见代码注释）。 */
+.tac-bg-grid {
+  position: absolute;
+  /* 比视口大一圈，平移时不会露边 */
+  inset: -10%;
+  background-image:
+    /* 细网格 */
+    repeating-linear-gradient(
+      0deg,
+      rgba(122, 145, 108, 0.085) 0px,
+      rgba(122, 145, 108, 0.085) 1px,
+      transparent 1px,
+      transparent 46px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(122, 145, 108, 0.085) 0px,
+      rgba(122, 145, 108, 0.085) 1px,
+      transparent 1px,
+      transparent 46px
+    ),
+    /* 粗网格：每 5 格一条，模拟雷达刻度 */
+    repeating-linear-gradient(
+      0deg,
+      rgba(217, 164, 65, 0.075) 0px,
+      rgba(217, 164, 65, 0.075) 1px,
+      transparent 1px,
+      transparent 230px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(217, 164, 65, 0.075) 0px,
+      rgba(217, 164, 65, 0.075) 1px,
+      transparent 1px,
+      transparent 230px
+    );
+  animation: tac-grid-drift 32s linear infinite;
+}
+
+@keyframes tac-grid-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(46px, 46px, 0); }
+}
+
+/* --- 20.2 扫掠光带：缓慢旋转的雷达扫掠 ---
+   一条 140° 的扇形渐变光，绕视口中心旋转，模拟雷达 PPI 扫掠。
+   放在右上角区域，避开正文主体。 */
+.tac-bg-sweep {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 210vmax;
+  height: 210vmax;
+  margin: -105vmax 0 0 -105vmax;
+  /* 扇形：从中心向右上扇开 */
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 306deg,
+    rgba(217, 164, 65, 0.055) 336deg,
+    rgba(217, 164, 65, 0.13) 352deg,
+    rgba(240, 195, 102, 0.22) 359deg,
+    transparent 360deg
+  );
+  animation: tac-sweep-spin 21s linear infinite;
+  opacity: 0.72;
+}
+
+@keyframes tac-sweep-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* --- 20.3 中心雷达环：两圈细环 + 缓速反向旋转 ---
+   呼应简报的雷达/军械主题。位置固定在视口中心偏右下，
+   透明度极低，只做氛围。 */
+.tac-bg-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 62vmin;
+  height: 62vmin;
+  margin: -31vmin 0 0 -31vmin;
+  border-radius: 50%;
+  border: 1px solid rgba(217, 164, 65, 0.11);
+  box-shadow:
+    inset 0 0 0 1px rgba(122, 145, 108, 0.06),
+    0 0 60px rgba(217, 164, 65, 0.045);
+  animation: tac-ring-spin 46s linear infinite reverse;
+}
+
+.tac-bg-ring::before,
+.tac-bg-ring::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+
+/* 外圈刻度：用 conic-gradient 画出断续的刻度环 */
+.tac-bg-ring::before {
+  inset: -13%;
+  background: conic-gradient(
+    rgba(217, 164, 65, 0.16) 0deg 1.1deg,
+    transparent 1.1deg 9deg
+  );
+  /* 只保留环带，挖掉中心 —— 用 mask 做圆环 */
+  -webkit-mask: radial-gradient(circle, transparent 63%, #000 64%, #000 66%, transparent 67%);
+          mask: radial-gradient(circle, transparent 63%, #000 64%, #000 66%, transparent 67%);
+}
+
+/* 内圈：更细的一道 */
+.tac-bg-ring::after {
+  inset: 22%;
+  border: 1px dashed rgba(122, 145, 108, 0.14);
+  animation: tac-ring-spin 33s linear infinite;
+}
+
+@keyframes tac-ring-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* --- 20.4 角落十字标线（静态装饰，配合动态层做"仪表盘"感）--- */
+.tac-bg-cross {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  opacity: 0.3;
+}
+.tac-bg-cross::before,
+.tac-bg-cross::after {
+  content: '';
+  position: absolute;
+  background: rgba(217, 164, 65, 0.55);
+}
+.tac-bg-cross::before { left: 50%; top: 0; width: 1px; height: 100%; transform: translateX(-50%); }
+.tac-bg-cross::after  { top: 50%; left: 0; height: 1px; width: 100%; transform: translateY(-50%); }
+.tac-bg-cross.is-tl { top: 84px; left: 26px; }
+.tac-bg-cross.is-br { bottom: 118px; right: 26px; }
+
+/* ============ 21. 鼠标轨迹：柔和光晕跟随 ============ */
+
+/* ⚠️⚠️ 层级取值的关键决策（改这里前务必读完）
+   轨迹层**必须放在正文之下**（z-index 0~2，与 .tac-bg 同层区间），
+   不能放在正文之上。
+
+   理由：光晕用的是 `mix-blend-mode: screen`（加光混合）。
+   若把它放在正文之上，鼠标滑过文字时文字会被逐帧加亮，
+   长文阅读过程中出现持续明暗变化 —— 这是典型的阅读干扰源，
+   也接近"闪烁"类不适感。放在正文之下则只影响背景，
+   视觉上是"页面底下有一团光在跟着你"，效果反而更高级。
+
+   ⚠️ 但正文容器默认是 z-index: auto（无自建层），
+      要让它盖住光晕，必须给正文容器显式定位与层级 ——
+      见本文件第 21.9 节的补丁。 */
+.tac-trace {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 420px;
+  height: 420px;
+  margin: -210px 0 0 -210px;
+  /* 与 .tac-bg（z=0）同层区间：网格之上、正文之下 */
+  z-index: 1;
+  pointer-events: none;
+  border-radius: 50%;
+  /* 中心暖色 → 边缘透明，模拟探照灯 */
+  background: radial-gradient(
+    circle at center,
+    rgba(217, 164, 65, 0.13) 0%,
+    rgba(217, 164, 65, 0.085) 22%,
+    rgba(122, 145, 108, 0.05) 45%,
+    transparent 68%
+  );
+  opacity: 0;
+  transition: opacity 0.5s var(--ease-out, ease);
+  will-change: transform;
+  /* 混合模式：在暗底上做"加光"，避免发灰 */
+  mix-blend-mode: screen;
+  /* 自身作为合成层，不触发重排 */
+  transform: translate3d(0, 0, 0);
+}
+
+/* JS 加上 is-live 后才显形，避免页面刚加载时光晕突兀地停在 (0,0) */
+.tac-trace.is-live {
+  opacity: 1;
+}
+
+/* 小型内核：更亮更集中，跟随更快（双层做视差，动态感更强） */
+.tac-trace-core {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 92px;
+  height: 92px;
+  margin: -46px 0 0 -46px;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at center,
+    rgba(240, 195, 102, 0.19) 0%,
+    rgba(217, 164, 65, 0.1) 38%,
+    transparent 72%
+  );
+  opacity: 0;
+  transition: opacity 0.42s var(--ease-out, ease);
+  will-change: transform;
+  mix-blend-mode: screen;
+  transform: translate3d(0, 0, 0);
+}
+
+.tac-trace-core.is-live {
+  opacity: 1;
+}
+
+/* ---- 21.9 让正文浮在光晕之上 ----
+   PaperMod 的正文容器（.main / .post-single / .list）默认无定位，
+   会被 z-index:1/2 的光晕压住。此处给它们建立独立层并抬到 10。
+
+   ⚠️ 不要给 .main 加背景色！那会盖住动态背景层，
+      整个动态背景就白做了。只抬层级，保持透明。 */
+.main,
+.post-single,
+.list {
+  position: relative;
+  z-index: 10;
+}
+
+/* 页头/页脚同样抬层，避免被光晕加亮 */
+.header,
+.footer {
+  position: relative;
+  z-index: 30;
+}
+
+/* 鼠标按下时：光晕收紧、变亮 —— 给交互加一层"触感" */
+body.tac-pointer-down .tac-trace {
+  opacity: 0.72;
+}
+body.tac-pointer-down .tac-trace-core {
+  opacity: 0.85;
+}
+
+/* ============ 22. 图片尺寸重塑：默认收窄，hover 放大 ============ */
+
+/* ⚠️ 覆盖 tactical.css 第 14 节的图片规则。
+   必须与那节用**完全相同的排除链**（:not × 4），否则特异性不足会被覆盖。
+   注意：本文件在 tactical-motion.css 之后加载，但 tactical.css 在
+   tactical-motion.css **之前**（见 extend_head.html 的引入顺序），
+   所以此处只需保证特异性不低于对方即可。
+
+   用户要求：「现在图片也太大了，先小，鼠标挪上去再放大呗」
+   → 默认宽 62%、居中，hover 放大到 92%。 */
+/* ⚠️ 下面这段只对**不在 figure 内**的裸 img 生效
+   （例如某些页面直接写了 ![]() 但渲染 hook 未套 figure 的情况）。
+   在 figure 内的 img 由上面的 figure 宽度统一控制，不要再打折，
+   否则会形成"figure 缩到 62%、img 再缩到 62%"的双重收缩（只剩 38%）。 */
+.post-content > p > img:not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame),
+.post-content img:not(figure.post-figure img):not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame) {
+  width: 62% !important;
+  max-width: 62%;
+  margin-left: auto;
+  margin-right: auto;
+  transition:
+    filter 0.42s var(--ease-out, ease),
+    transform 0.52s var(--ease-snap, cubic-bezier(0.22, 1, 0.36, 1)),
+    box-shadow 0.52s var(--ease-out, ease),
+    width 0.52s var(--ease-snap, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+/* hover / 聚焦：放大到 92%，加辉光与描边提亮 */
+.post-content > p > img:not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame):hover,
+.post-content img:not(figure.post-figure img):not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame):hover {
+  width: 92% !important;
+  max-width: 92%;
+  filter: saturate(1) contrast(1.07) brightness(1);
+  box-shadow:
+    0 18px 52px rgba(0, 0, 0, 0.62),
+    0 0 0 1px rgba(217, 164, 65, 0.55),
+    0 0 34px rgba(217, 164, 65, 0.16);
+}
+
+/* 超宽横幅图（wide-banner）：基准就比普通图宽，默认 82% / hover 100%
+   （在 figure 内的情况由上面的 --fig-w 控制，此处同样只针对裸 img） */
+.post-content img.wide-banner:not(figure.post-figure img):not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame) {
+  width: 82% !important;
+  max-width: 82%;
+}
+
+.post-content img.wide-banner:not(figure.post-figure img):not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame):hover {
+  width: 100% !important;
+  max-width: 100%;
+}
+
+/* --- figure 容器：必须与 img 同步收窄，否则图注会比图宽出一截 ---
+   ⚠️ 这里踩过一个循环依赖的坑：
+      若让 figure 保持 100% 宽、img 用 `width: 62%` 居中，
+      那 img 的 62% 是相对**figure** 算的，而 figure 又是满宽 ——
+      结果图小了、但 figure 还是满宽，图注（figcaption）作为 figure 的
+      直接子元素自然也是满宽，视觉上就是「小图 + 一条超长的图注」。
+      截图实测确实如此（图 533px，图注 860px）。
+
+   → 正确做法：让 **figure 本身收窄**，img 填满 figure（width: 100%）。
+      这样图注天然与图同宽，且 hover 放大只需改 figure 一个变量。
+
+   用 CSS 自定义属性做单一事实来源，保证 img 与 figure 永远同步。 */
+.post-content figure.post-figure:has(> img) {
+  /* 默认态宽度：普通图 62%，横幅图 82% */
+  --fig-w: 62%;
+  width: var(--fig-w);
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  transition: width 0.52s var(--ease-snap, cubic-bezier(0.22, 1, 0.36, 1));
+}
+
+/* 横幅图基准更宽 */
+.post-content figure.post-figure:has(> img.wide-banner) {
+  --fig-w: 82%;
+}
+
+/* hover：figure 放大，img 跟着一起变大（img 填满 figure） */
+.post-content figure.post-figure:has(> img):hover {
+  --fig-w: 92%;
+}
+.post-content figure.post-figure:has(> img.wide-banner):hover {
+  --fig-w: 100%;
+}
+
+/* img 在 figure 内填满 —— 宽度由 figure 控制，不要再自己设百分比
+   （否则又会形成"img 相对 figure 再打折"的双重收缩） */
+.post-content figure.post-figure:has(> img) > img:not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame) {
+  width: 100% !important;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ⚠️ 关键：抵消 motion.css 第 779 行的 .post-content img:hover { scale(1.025) }
+   —— 在 figure 内的图片，其"放大"已经由 figure 宽度（62%→92%）负责。
+      若再叠一层 transform: scale，会形成双重放大：
+        figure 791px × 1.025 = 810.97px（超出 figure 19.8px）
+        wide 图 860px × 1.025 = 881.5px（**超出 860px 版心，压到右边距**）
+      实测确有此溢出，故在此显式归零缩放，只保留宽度动画。 */
+.post-content figure.post-figure:has(> img) > img:hover {
+  transform: none !important;
+}
+
+/* 图注：宽度 100% 即等于 figure 宽度，与图完全对齐 */
+.post-content figure.post-figure:has(> img) > figcaption {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ============ 23. 动画强度增强层（"再放开点"） ============ */
+
+/* 用户要求「动画能不能再放开点」。此处对 v4 已有的 hover 动效
+   做**增量增强**，不替换原有定义 —— 只调参数，避免破坏 v4 的多边形语言。 */
+
+/* --- 23.1 文章卡片：位移与缩放加大，光泽更亮 --- */
+.post-entry {
+  transition:
+    transform 0.46s var(--ease-snap, cubic-bezier(0.22, 1, 0.36, 1)),
+    box-shadow 0.46s var(--ease-out, ease) !important;
+}
+.post-entry:hover {
+  transform: translateY(-9px) scale(1.021) !important;
+  box-shadow:
+    0 22px 58px rgba(0, 0, 0, 0.66),
+    0 0 0 1px rgba(217, 164, 65, 0.42),
+    0 0 44px rgba(217, 164, 65, 0.12) !important;
+}
+
+/* --- 23.2 导航项：抬起更多 --- */
+#menu a:hover,
+#menu .active {
+  transform: translateY(-3px) !important;
+}
+
+/* --- 23.3 正文标题：hover 时琥珀竖线变长（标题也可交互，增强"活着"的感觉） --- */
+.post-content h2,
+.post-content h3 {
+  transition: color 0.32s var(--ease-out, ease), transform 0.42s var(--ease-snap, cubic-bezier(0.22, 1, 0.36, 1));
+}
+.post-content h2:hover,
+.post-content h3:hover {
+  color: var(--amber, #d9a441);
+  transform: translateX(4px);
+}
+
+/* --- 23.4 表格行：hover 位移 --- */
+.post-content tbody tr {
+  transition: background 0.26s var(--ease-out, ease), transform 0.3s var(--ease-out, ease);
+}
+.post-content tbody tr:hover {
+  transform: translateX(5px);
+}
+
+/* --- 23.5 滚动进入视口的元素渐显（用 IntersectionObserver 挂类）---
+   ⚠️ 只在 JS 可用时才挂 .tac-reveal，无 JS 时元素保持可见（不会白屏）。 */
+.tac-reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  transition:
+    opacity 0.72s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+    transform 0.72s var(--ease-snap, cubic-bezier(0.22, 1, 0.36, 1));
+  will-change: opacity, transform;
+}
+.tac-reveal.is-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* ============ 24. 移动端 / 触屏 / 低性能回退 ============ */
+
+/* 触屏（无 hover）：关闭鼠标轨迹层，图片恢复接近满宽并取消放大 */
+@media (hover: none), (pointer: coarse) {
+  .tac-trace,
+  .tac-trace-core {
+    display: none !important;
+  }
+  /* figure 内：直接给 --fig-w 变量，保持"单一事实来源"的写法一致 */
+  .post-content figure.post-figure:has(> img) {
+    --fig-w: 100%;
+  }
+  .post-content > p > img:not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame),
+  .post-content img:not(figure.post-figure img):not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame) {
+    width: 100% !important;
+    max-width: 100%;
+  }
+}
+
+/* 窄屏：动态背景保留但简化（网格收小、光带降透明度），
+   ⚠️ 不能整体删掉，否则手机上失去动态感；但要避免抢眼。 */
+@media (max-width: 860px) {
+  .tac-bg-sweep {
+    opacity: 0.42;
+  }
+  .tac-bg-ring {
+    width: 88vmin;
+    height: 88vmin;
+    margin: -44vmin 0 0 -44vmin;
+  }
+  .tac-bg-cross {
+    display: none;
+  }
+}
+
+/* --- 窄屏图片放宽 ---
+   ⚠️ 漏过一次：原先只在 @media (hover: none) / (pointer: coarse) 里放宽图片，
+      那只覆盖"触屏设备"。但桌面浏览器把窗口拖窄到 600px 时仍是 hover: hover，
+      此时 62% 只有 ~372px，图小得看不清。实测确认（600px 视口下 figure 仍为 62%）。
+   → 窄屏同样放宽：<=900px 给 100%（此宽度下版心本身已不满，不需要留白）。 */
+@media (max-width: 900px) {
+  .post-content figure.post-figure:has(> img),
+  .post-content figure.post-figure:has(> img.wide-banner) {
+    --fig-w: 100%;
+  }
+  .post-content figure.post-figure:has(> img):hover,
+  .post-content figure.post-figure:has(> img.wide-banner):hover {
+    --fig-w: 100%;   /* 窄屏无 hover 余地，锁死避免抖动 */
+  }
+  .post-content > p > img:not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame),
+  .post-content img:not(figure.post-figure img):not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame) {
+    width: 100% !important;
+    max-width: 100%;
+  }
+  .post-content > p > img:hover:not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame),
+  .post-content img:not(figure.post-figure img):hover:not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame) {
+    width: 100% !important;
+    max-width: 100%;
+  }
+}
+
+/* 小屏（<=600px）：关闭动态背景的重负载部分，只留网格。
+   手机上 GPU 弱，旋转的 conic-gradient 会很贵。 */
+@media (max-width: 600px) {
+  .tac-bg-sweep,
+  .tac-bg-ring {
+    display: none;
+  }
+}
+
+/* 打印：全部关掉 */
+@media print {
+  .tac-bg,
+  .tac-trace,
+  .tac-trace-core {
+    display: none !important;
+  }
+}

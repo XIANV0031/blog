@@ -26,6 +26,13 @@
   })();
 </script>
 
+{{- /* ---------- 动态层脚本（动态背景 / 鼠标轨迹 / 滚动渐显）---------- */ -}}
+{{- /* 见 static/js/tactical-dynamic.js
+       ⚠️ 用 defer 之外的普通 <script> 放在 footer 末（DOM 已就绪），
+          且脚本内部自带 readyState 判断与 try/catch 分块兜底，
+          任何一块失败都不影响页面可用性。 */ -}}
+<script src="{{ "js/tactical-dynamic.js" | relURL }}"></script>
+
 {{- /* ---------- 音频播放器 ---------- */ -}}
 {{- /* 曲目清单必须整段包在 {{ `{{ if false }}` }} 之外也无妨；这里直接硬编码。
        注意：data-* 属性里不能直接用管道（会被判为 ambiguous context within a URL），

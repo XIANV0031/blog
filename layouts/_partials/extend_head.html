@@ -5,6 +5,13 @@
 <link rel="stylesheet" href="{{ "css/tactical-motion.css" | relURL }}">
 <link rel="preload" as="style" href="{{ "css/tactical-motion.css" | relURL }}">
 
+{{- /* 动态层（动态背景 / 鼠标轨迹 / 图片尺寸重塑 / 动画增强）
+       —— 见 static/css/tactical-dynamic.css
+       ⚠️ 必须在 tactical-motion.css **之后**引入：
+          它需要对 v4 的 hover 动效做增量覆盖，靠的是同等特异性下的
+          "后加载者胜"；顺序颠倒了增强就不生效。 */ -}}
+<link rel="stylesheet" href="{{ "css/tactical-dynamic.css" | relURL }}">
+
 {{- /* 等宽字体：用于标识性文字（标题/元信息/表格头），正文不用 */ -}}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
