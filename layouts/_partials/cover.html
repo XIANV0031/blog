@@ -2,7 +2,7 @@
 {{- /* ------------------------------------------------------------------
      本文件覆盖主题同名 partial：themes/PaperMod/layouts/_partials/cover.html
      ------------------------------------------------------------
-     唯一改动（2026-09-20）：第 22 行 absURL → relURL。
+     改动一（2026-09-20 第一轮）：`absURL` → `relURL`。
 
      原因：主题原版把 cover.image 经 absURL 解析成**绝对地址**
      （https://xianv0031.github.io/blog/images/covers/x.jpg），
@@ -13,8 +13,14 @@
        · 线上  → 解析为 /blog/images/covers/x.jpg，行为与原来完全一致
        · 本地  → 解析为当前源的相对路径，正常显示
 
+     改动二（2026-09-20 第二轮）：题注不再限定 `$.IsSingle`。
+
+     主题原版只在详情页输出 <figcaption>，列表页封面是纯图。
+     本站封面 caption 均写明具体产品名，列表页读者同样需要。
+     详见文件末尾注释。
+
      维护提示：主题升级时需重新对比此文件与上游差异，
-     仅保留这一处 absURL→relURL 的改动。
+     仅保留上述两处改动。
      ------------------------------------------------------------------ */ -}}
 {{- if (and .Params.cover.image (not $.isHidden)) }}
 <figure class="entry-cover">
@@ -73,10 +79,18 @@
     {{- end -}}
 
     {{- /*  Display Caption  */}}
-    {{- if $.IsSingle }}
-        {{ with .Params.cover.caption -}}
-            <figcaption>{{ . | markdownify }}</figcaption>
-        {{- end }}
+    {{- /* ------------------------------------------------------------------
+         改动（2026-09-20 第二轮）：去掉 `if $.IsSingle` 限制。
+
+         主题原版只在**详情页**输出题注，列表页封面是纯图。但本站的封面
+         caption 都写明了具体产品名（如「东京丸井『たきなの銃』联名 GBB 手枪」），
+         这正是列表页读者最需要的信息 —— 光看图认不出型号。
+
+         → 列表页与详情页统一输出题注，样式由 tactical-cover.css 的
+           铭牌规则接管（等宽字体 + 琥珀左边线 + 右下切角）。
+         ------------------------------------------------------------------ */}}
+    {{- with .Params.cover.caption -}}
+        <figcaption>{{ . | markdownify }}</figcaption>
     {{- end }}
 </figure>
 {{- end }}{{/* End image */}}

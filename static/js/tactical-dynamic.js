@@ -6,6 +6,7 @@
      2. 鼠标轨迹光晕跟随（lerp 插值双层视差）
      3. 正文元素的滚动渐显（IntersectionObserver）
      4. 图片 hover 时同步 figure 宽度（供不支持 :has() 的旧浏览器兜底）
+     5. 首页背景强化层注入（顶部光斑 + 左右刻度尺，仅首页）
 
    ⚠️ 设计约束（改本文件前必读）
    · **必须优雅降级**：JS 未加载 / 报错时，页面必须完全可用。
@@ -271,10 +272,41 @@
   }
 
   /* ==========================================================
+     5. 首页背景强化层（仅首页注入）
+     ----------------------------------------------------------
+     全站已有一层 .tac-bg，首页在第一屏之后只剩卡片与留白，观感偏空。
+     此处再叠一层 .home-skin 做顶部光斑 + 左右刻度尺。
+
+     ⚠️ 只在首页注入。判定依据：首页有 .home-info（信息面板），
+        而归档页 / 搜索页 / 标签页都没有（实测 1 vs 0）。
+        CSS 侧用 body:has(.home-info) 控制显示，此处只在需要时建 DOM，
+        避免给每个页面都挂一个用不到的大尺寸 fixed 层。
+     ========================================================== */
+  function buildHomeSkin() {
+    if (isPrint) return;
+    // 非首页直接跳过：省掉一个 fixed 层与它的合成开销
+    if (!document.querySelector('.home-info')) return;
+    if (document.querySelector('.home-skin')) return;
+
+    var skin = document.createElement('div');
+    skin.className = 'home-skin';
+    skin.setAttribute('aria-hidden', 'true');
+    // 插到 body 首子元素之后（.tac-bg 是首子元素），
+    // 两者层级由 CSS 的 z-index 决定（bg=0，skin=3），DOM 顺序不影响
+    var bg = document.querySelector('.tac-bg');
+    if (bg && bg.nextSibling) {
+      document.body.insertBefore(skin, bg.nextSibling);
+    } else {
+      document.body.insertBefore(skin, document.body.firstChild);
+    }
+  }
+
+  /* ==========================================================
      启动
      ========================================================== */
   function boot() {
     try { buildBackground(); } catch (e) {}
+    try { buildHomeSkin(); } catch (e) {}
     try { buildTrace(); } catch (e) {}
     try { buildReveal(); } catch (e) {}
     try { buildFigureSync(); } catch (e) {}

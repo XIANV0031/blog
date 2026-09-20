@@ -1,0 +1,470 @@
+/* ============================================================================
+   tactical-cover.css —— 首页/列表页封面重塑
+   ----------------------------------------------------------------------------
+   背景（2026-09-20 第二轮）：
+     用户反馈「主页封面大图也改成简报里面那种」，
+     追问后明确为「是图片太大了，浮于上方才变大」
+     → 即：把**正文插图**那套「默认小、hover 放大」搬到封面，
+       并补齐简报插图的视觉语言（琥珀描边 / 角标 / 题注铭牌 / 内部叠层）。
+
+   ⚠️ 加载顺序：本文件必须在 tactical.css 之后（覆盖 .entry-cover 原规则）。
+      见 extend_head.html 的引入顺序。
+
+   ⚠️ 硬约束（继承自站点既有教训）：
+     1. 动画只用 transform / opacity（本机 GPU 弱，避免 repaint）
+     2. 不能写 prefers-reduced-motion 一刀切（会把整站动画掐死）
+     3. 伪元素 @keyframes 动画不受 reduce 影响 —— 装饰性动效属"分级响应"
+        的保留项，只对"跟随鼠标的持续位移"降级
+   ========================================================================== */
+
+/* ============================================================================
+   1. 列表页封面：默认收窄 + hover 放大
+   ----------------------------------------------------------------------------
+   ⚠️⚠️ 为什么改的是 .entry-cover 而不是里面的 img：
+
+   和正文插图遇到的是**同一个循环依赖陷阱**（见 skill 4.10 第 2 条）：
+   若让 .entry-cover 保持满宽、只给 img 设 width: 62%，
+   那 img 的 62% 是相对 cover 算的，而 cover 仍是满宽 ——
+   结果「图变小了，但容器没变」，题注（figcaption 是 cover 的直接子元素）
+   依旧满宽，视觉上就是「小图 + 一条超长的题注」。
+
+   → 正解：让 **.entry-cover 本身收窄**，img 在里面填满（width: 100%）。
+      用 CSS 自定义属性 --cover-w 做单一事实来源，
+      题注天然与图同宽，hover 放大也只需改这一个变量。
+
+   尺寸依据（实测）：列表列宽 860px（--main-width），
+     · 默认 62%  → 533px，比原来 814px 缩小约 35%，视线不再被图压住
+     · hover 96% → 826px，呈现"浮起放大"的层次感
+   ========================================================================== */
+
+.post-entry .entry-cover,
+.tag-entry .entry-cover {
+  /* 单一事实来源：所有宽度都从这里派生 */
+  --cover-w: 62%;
+  width: var(--cover-w);
+  max-width: 100%;
+  /* 靠左对齐（而非居中）—— 与卡片内的标题、摘要形成同一条左基线，
+     居中会破坏卡片的阅读动线 */
+  margin-left: 0 !important;
+  margin-right: auto !important;
+  /* 放大要"浮起来"：位移+缩放由外层卡片负责，这里只做宽度与描边过渡 */
+  transition:
+    width 0.56s var(--ease-snap, cubic-bezier(0.22, 1, 0.36, 1)),
+    border-color 0.36s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1)),
+    box-shadow 0.44s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+/* hover：封面自身放大到 96%，并点亮琥珀描边 */
+.post-entry:hover .entry-cover,
+.post-entry .entry-cover:hover,
+.tag-entry:hover .entry-cover,
+.tag-entry .entry-cover:hover {
+  --cover-w: 96%;
+}
+
+/* 聚焦可达性：键盘 Tab 到卡片内链接时同样放大 */
+.post-entry:focus-within .entry-cover,
+.tag-entry:focus-within .entry-cover {
+  --cover-w: 96%;
+}
+
+/* 图片在 cover 内填满 —— 不要再自己设百分比（会形成双重收缩） */
+.post-entry .entry-cover img,
+.tag-entry .entry-cover img {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* ============================================================================
+   2. 封面内部叠层装饰（"背景加点东西"）
+   ----------------------------------------------------------------------------
+   用**单个 ::after 伪元素**叠多层 background，避免额外 DOM 与额外合成层。
+   叠层从下到上：
+     a. 技术网格（细 46px / 粗 230px，与全站动态背景同参数 → 视觉同源）
+     b. 扫描线（3px 周期，CRT 质感）
+     c. 四角角标刻度（用 4 组 linear-gradient 画 L 形角标）
+     d. 底部渐深（保证题注区文字可读）
+     e. 径向暗角（中心留亮，四周收暗 → 「瞄准镜」观感）
+
+   ⚠️ 全部用 background-image 静态绘制，不做 background-position 动画
+      （大尺寸重绘在弱 GPU 上代价高）。角标呼吸感由 opacity 承担。
+   ========================================================================== */
+
+.post-entry .entry-cover::after,
+.tag-entry .entry-cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+
+  background-image:
+    /* --- c1. 四角角标：左上（横 + 竖）--- */
+    linear-gradient(to right,  rgba(217, 164, 65, 0.85) 0 14px, transparent 14px),
+    linear-gradient(to bottom, rgba(217, 164, 65, 0.85) 0 14px, transparent 14px),
+    /* --- c2. 四角角标：右上 --- */
+    linear-gradient(to left,   rgba(217, 164, 65, 0.85) 0 14px, transparent 14px),
+    linear-gradient(to bottom, rgba(217, 164, 65, 0.85) 0 14px, transparent 14px),
+    /* --- c3. 四角角标：左下 --- */
+    linear-gradient(to right,  rgba(217, 164, 65, 0.85) 0 14px, transparent 14px),
+    linear-gradient(to top,    rgba(217, 164, 65, 0.85) 0 14px, transparent 14px),
+    /* --- c4. 四角角标：右下 --- */
+    linear-gradient(to left,   rgba(217, 164, 65, 0.85) 0 14px, transparent 14px),
+    linear-gradient(to top,    rgba(217, 164, 65, 0.85) 0 14px, transparent 14px),
+    /* --- d. 技术网格：细格 46px + 粗格 230px（与 .tac-bg 同参数）--- */
+    repeating-linear-gradient(0deg,  rgba(217, 164, 65, 0.10) 0 1px, transparent 1px 46px),
+    repeating-linear-gradient(90deg, rgba(217, 164, 65, 0.10) 0 1px, transparent 1px 46px),
+    repeating-linear-gradient(0deg,  rgba(217, 164, 65, 0.16) 0 1px, transparent 1px 230px),
+    repeating-linear-gradient(90deg, rgba(217, 164, 65, 0.16) 0 1px, transparent 1px 230px),
+    /* --- b. 扫描线 --- */
+    repeating-linear-gradient(0deg, rgba(13, 20, 16, 0.20) 0 1px, transparent 1px 3px),
+    /* --- e. 径向暗角（瞄准镜）--- */
+    radial-gradient(ellipse 78% 72% at 50% 46%,
+      transparent 0%, transparent 52%, rgba(13, 20, 16, 0.55) 100%),
+    /* --- 底部渐深（题注可读性）--- */
+    linear-gradient(180deg,
+      rgba(13, 20, 16, 0.30) 0%, rgba(13, 20, 16, 0) 34%, rgba(13, 20, 16, 0.62) 100%);
+
+  /* 角标只占四角：用 background-size / position 定位 */
+  background-size:
+    14px 2px,  2px 14px,     /* 左上 L */
+    14px 2px,  2px 14px,     /* 右上 L */
+    14px 2px,  2px 14px,     /* 左下 L */
+    14px 2px,  2px 14px,     /* 右下 L */
+    100% 100%, 100% 100%, 100% 100%, 100% 100%,   /* 网格 */
+    100% 100%,                                    /* 扫描线 */
+    100% 100%,                                    /* 暗角 */
+    100% 100%;                                    /* 底部渐深 */
+
+  background-position:
+    10px 10px, 10px 10px,                      /* 左上 */
+    calc(100% - 10px) 10px, calc(100% - 10px) 10px,  /* 右上 */
+    10px calc(100% - 10px), 10px calc(100% - 10px),  /* 左下 */
+    calc(100% - 10px) calc(100% - 10px), calc(100% - 10px) calc(100% - 10px), /* 右下 */
+    0 0, 0 0, 0 0, 0 0,
+    0 0,
+    0 0,
+    0 0;
+
+  background-repeat: no-repeat;
+
+  opacity: 0.92;
+  transition: opacity 0.44s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+/* hover：装饰层淡下去，让图片本身更亮更清晰（"浮上来"） */
+.post-entry:hover .entry-cover::after,
+.post-entry .entry-cover:hover::after,
+.tag-entry:hover .entry-cover::after,
+.tag-entry .entry-cover:hover::after {
+  opacity: 0.42;
+}
+
+/* hover：图片提亮 + 琥珀描边辉光（与卡片的放大动作配合） */
+.post-entry:hover .entry-cover,
+.tag-entry:hover .entry-cover {
+  border-color: rgba(217, 164, 65, 0.78);
+  box-shadow:
+    0 14px 38px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(217, 164, 65, 0.34),
+    0 0 34px rgba(217, 164, 65, 0.1);
+}
+
+/* ⚠️ 叠加中和：tactical.css 在 hover 时给 img 加了 scale(1.045)。
+   本层已用「容器宽度 62% → 96%」实现放大，
+   两者叠加会让图冲出容器（与正文插图踩过的坑同源）。
+   → 在封面内归零缩放，只保留滤镜变化。 */
+.post-entry:hover .entry-cover img,
+.tag-entry:hover .entry-cover img {
+  transform: none !important;
+  filter: saturate(0.98) contrast(1.08) brightness(1.03) !important;
+}
+
+/* ============================================================================
+   3. 题注铭牌（与正文插图同款语言）
+   ----------------------------------------------------------------------------
+   cover.html 已改为列表页也输出 <figcaption>。
+   此处样式照抄 tactical.css 第 14 节的铭牌规则，保证两处一致：
+   等宽字体 + 琥珀左边线 + 右下切角。
+   ========================================================================== */
+
+.post-entry .entry-cover figcaption,
+.tag-entry .entry-cover figcaption {
+  position: relative;
+  z-index: 3;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  text-align: left;
+  padding: 7px 10px 7px 12px;
+  margin: 0;
+  background: rgba(13, 20, 16, 0.6);
+  border-top: 1px solid rgba(217, 164, 65, 0.22);
+  border-left: 2px solid rgba(217, 164, 65, 0.45);
+  /* 右下切角，呼应图片的斜角嵌板 */
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
+  /* 题注宽度 100% 即等于 cover 宽度，与图严格对齐 */
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ============================================================================
+   4. 详情页头图：保持满宽，但补齐角标叠层与描边
+   ----------------------------------------------------------------------------
+   详情页头图是"文章门面"，**不应**跟随列表页缩小 —— 满宽才有气势。
+   但装饰语言要统一，故同样叠角标 + 网格 + 暗角。
+   ========================================================================== */
+
+.post-single .entry-cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+
+  background-image:
+    linear-gradient(to right,  rgba(217, 164, 65, 0.8) 0 18px, transparent 18px),
+    linear-gradient(to bottom, rgba(217, 164, 65, 0.8) 0 18px, transparent 18px),
+    linear-gradient(to left,   rgba(217, 164, 65, 0.8) 0 18px, transparent 18px),
+    linear-gradient(to bottom, rgba(217, 164, 65, 0.8) 0 18px, transparent 18px),
+    linear-gradient(to right,  rgba(217, 164, 65, 0.8) 0 18px, transparent 18px),
+    linear-gradient(to top,    rgba(217, 164, 65, 0.8) 0 18px, transparent 18px),
+    linear-gradient(to left,   rgba(217, 164, 65, 0.8) 0 18px, transparent 18px),
+    linear-gradient(to top,    rgba(217, 164, 65, 0.8) 0 18px, transparent 18px),
+    repeating-linear-gradient(0deg,  rgba(217, 164, 65, 0.075) 0 1px, transparent 1px 46px),
+    repeating-linear-gradient(90deg, rgba(217, 164, 65, 0.075) 0 1px, transparent 1px 46px),
+    repeating-linear-gradient(0deg,  rgba(13, 20, 16, 0.10) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse 86% 84% at 50% 44%,
+      transparent 0%, transparent 56%, rgba(13, 20, 16, 0.5) 100%),
+    linear-gradient(180deg,
+      rgba(13, 20, 16, 0.38) 0%, rgba(13, 20, 16, 0.04) 32%, rgba(13, 20, 16, 0.5) 100%);
+
+  background-size:
+    18px 2px, 2px 18px,
+    18px 2px, 2px 18px,
+    18px 2px, 2px 18px,
+    18px 2px, 2px 18px,
+    100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+
+  background-position:
+    14px 14px, 14px 14px,
+    calc(100% - 14px) 14px, calc(100% - 14px) 14px,
+    14px calc(100% - 14px), 14px calc(100% - 14px),
+    calc(100% - 14px) calc(100% - 14px), calc(100% - 14px) calc(100% - 14px),
+    0 0, 0 0, 0 0, 0 0, 0 0;
+
+  background-repeat: no-repeat;
+  opacity: 0.95;
+  transition: opacity 0.5s var(--ease-out, cubic-bezier(0.16, 1, 0.3, 1));
+}
+
+/* 详情页头图 hover：装饰淡出，图片细节浮现（与列表页同一动作语言） */
+.post-single .entry-cover:hover::after {
+  opacity: 0.4;
+}
+
+/* 详情页头图题注：沿用 tactical.css 的既有规则，此处只补 z-index 保证压在叠层之上 */
+.post-single .entry-cover figcaption {
+  position: relative;
+  z-index: 3;
+}
+
+/* ============================================================================
+   5. 首页背景强化（"背景可以加点东西，有点单调了"）
+   ----------------------------------------------------------------------------
+   全站已有一层 .tac-bg（雷达网格 + 扫掠，z=0），但首页在第一屏之后
+   只剩卡片与留白，观感偏空。此处**仅在首页**追加一层强化背景。
+
+   ⚠️ 精准限定首页的写法：`body:has(.home-info)`
+      —— 实测首页有 .home-info（信息面板），而归档页 / 搜索页 / 标签页
+         都是 0 处（PaperMod 只在首页输出 home-info）。
+         比给 body 加类更省事（不必覆盖 baseof.html），也不会误伤其他列表页。
+      ⚠️ 若 :has() 不受支持，本段整体失效 —— 但只是"少一层装饰"，
+         属优雅降级，不影响任何功能。
+
+   层级：z 必须落在 (0, 10) 之间 —— 在动态背景之上、正文之下。
+   ========================================================================== */
+
+.home-skin {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+  contain: strict;
+  will-change: transform;
+  display: none;   /* 默认不显示，由 body:has(.home-info) 打开 */
+}
+
+body:has(.home-info) .home-skin {
+  display: block;
+}
+
+/* --- 5.1 顶部横幅区：琥珀光斑 + 斜向刻度带 --- */
+.home-skin::before {
+  content: '';
+  position: absolute;
+  top: -12%;
+  left: 50%;
+  width: min(1400px, 130vw);
+  height: 620px;
+  margin-left: calc(min(1400px, 130vw) / -2);
+  background:
+    /* 斜向刻度带（军工标签语言） */
+    repeating-linear-gradient(115deg,
+      rgba(217, 164, 65, 0.075) 0 2px,
+      transparent 2px 18px),
+    /* 中心柔光斑 */
+    radial-gradient(ellipse 60% 54% at 50% 42%,
+      rgba(217, 164, 65, 0.11) 0%,
+      rgba(217, 164, 65, 0.045) 38%,
+      transparent 72%);
+  /* 底部羽化，避免出现生硬的横向分界 */
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
+  animation: home-veil-breath 13s ease-in-out infinite;
+}
+
+/* 呼吸式明暗：只动 opacity，走合成层不 repaint */
+@keyframes home-veil-breath {
+  0%, 100% { opacity: 0.78; }
+  50%      { opacity: 1; }
+}
+
+/* --- 5.2 贯穿全页的纵向刻度尺（左右两侧）---
+   贴在视口边缘的"仪表刻度"，给长页面提供纵向参照，缓解单调 */
+.home-skin::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    /* 左侧刻度：每 84px 一格短横线 */
+    repeating-linear-gradient(180deg,
+      rgba(217, 164, 65, 0.16) 0 1px,
+      transparent 1px 84px),
+    /* 右侧同款，错开 42px 避免完全对称显得呆板 */
+    repeating-linear-gradient(180deg,
+      transparent 0 42px,
+      rgba(122, 145, 108, 0.13) 42px 43px,
+      transparent 43px 84px);
+  /* 只保留左右各 30px 宽的刻度，中间留空不干扰阅读 */
+  -webkit-mask-image:
+    linear-gradient(90deg, #000 0 30px, transparent 30px calc(100% - 30px), #000 calc(100% - 30px) 100%);
+  mask-image:
+    linear-gradient(90deg, #000 0 30px, transparent 30px calc(100% - 30px), #000 calc(100% - 30px) 100%);
+  opacity: 0.9;
+}
+
+/* --- 5.3 卡片区域：给首屏之后的卡片加一层极淡的横向扫描托底 ---
+   （纯背景，不参与布局，不拦截事件） */
+
+/* ============================================================================
+   6. 首页背景强化的响应式与降级
+   ========================================================================== */
+
+/* 窄屏：刻度尺太窄会显得杂乱，收掉；顶部光斑保留但减弱 */
+@media (max-width: 860px) {
+  .home-skin::after {
+    display: none;
+  }
+  .home-skin::before {
+    height: 440px;
+    opacity: 0.85;
+  }
+}
+
+@media (max-width: 600px) {
+  .home-skin::before {
+    height: 340px;
+  }
+}
+
+@media print {
+  .home-skin {
+    display: none !important;
+  }
+}
+
+/* ============================================================================
+   7. 窄屏 / 触屏回退
+   ----------------------------------------------------------------------------
+   ⚠️ 同正文插图的教训：只写 @media (hover: none) 不够 ——
+      桌面浏览器窗口拖窄时仍是 hover: hover，62% 会小到看不清。
+      → 窄屏单独补一条。
+   ========================================================================== */
+
+/* 窄屏：封面恢复满宽（此宽度下版心本身已不满，不需要留白）；
+   hover 也锁死满宽，避免抖动 */
+@media (max-width: 900px) {
+  .post-entry .entry-cover,
+  .tag-entry .entry-cover,
+  .post-entry:hover .entry-cover,
+  .post-entry .entry-cover:hover,
+  .tag-entry:hover .entry-cover,
+  .tag-entry .entry-cover:hover,
+  .post-entry:focus-within .entry-cover,
+  .tag-entry:focus-within .entry-cover {
+    --cover-w: 100%;
+  }
+}
+
+/* 触屏：取消 hover 放大（无"浮起"概念），装饰降一档避免抢眼 */
+@media (hover: none), (pointer: coarse) {
+  .post-entry .entry-cover,
+  .tag-entry .entry-cover {
+    --cover-w: 100%;
+  }
+  .post-entry .entry-cover::after,
+  .tag-entry .entry-cover::after {
+    opacity: 0.78;
+  }
+}
+
+/* 小屏：角标缩小、网格加密（视觉密度适配） */
+@media (max-width: 600px) {
+  .post-entry .entry-cover::after,
+  .tag-entry .entry-cover::after {
+    background-size:
+      10px 2px, 2px 10px,
+      10px 2px, 2px 10px,
+      10px 2px, 2px 10px,
+      10px 2px, 2px 10px,
+      100% 100%, 100% 100%, 100% 100%, 100% 100%,
+      100% 100%, 100% 100%, 100% 100%;
+    background-position:
+      7px 7px, 7px 7px,
+      calc(100% - 7px) 7px, calc(100% - 7px) 7px,
+      7px calc(100% - 7px), 7px calc(100% - 7px),
+      calc(100% - 7px) calc(100% - 7px), calc(100% - 7px) calc(100% - 7px),
+      0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0;
+  }
+  .post-single .entry-cover::after {
+    background-size:
+      12px 2px, 2px 12px,
+      12px 2px, 2px 12px,
+      12px 2px, 2px 12px,
+      12px 2px, 2px 12px,
+      100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
+    background-position:
+      9px 9px, 9px 9px,
+      calc(100% - 9px) 9px, calc(100% - 9px) 9px,
+      9px calc(100% - 9px), 9px calc(100% - 9px),
+      calc(100% - 9px) calc(100% - 9px), calc(100% - 9px) calc(100% - 9px),
+      0 0, 0 0, 0 0, 0 0, 0 0;
+  }
+}
+
+/* 打印：不要装饰层 */
+@media print {
+  .post-entry .entry-cover::after,
+  .tag-entry .entry-cover::after,
+  .post-single .entry-cover::after {
+    display: none !important;
+  }
+  .post-entry .entry-cover,
+  .tag-entry .entry-cover {
+    --cover-w: 100%;
+  }
+}
