@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 境外 GBB/AEG 简报 —— 发布脚本
+# WAR GAME 情报站 —— 发布脚本
 # 用途：本地构建校验 → 提交 → 推送到 GitHub（触发 Pages 更新）
 #
 # 用法：bash publish.sh "提交信息"
@@ -7,7 +7,7 @@
 # 前置条件：
 #   1. git 凭据已配置（~/.git-credentials + credential.helper=store）
 #      —— 无需 GITHUB_TOKEN，推送走凭据管理器，可无人值守
-#   2. 简报 markdown 已放入 content/posts/
+#   2. 文章 markdown 已放入 content/posts/
 
 set -uo pipefail
 
@@ -16,7 +16,7 @@ REPO_DIR_WIN="D:\\blog-hugo"   # hugo.exe 是 Windows 程序，必须传 Windows
 BRANCH="main"
 HUGO_BIN="/c/Users/Administrator/AppData/Local/Microsoft/WinGet/Links/hugo.exe"
 
-MSG="${1:-brief: $(date +%Y-%m-%d) 境外 GBB/AEG 资讯简报}"
+MSG="${1:-post: $(date +%Y-%m-%d) WAR GAME 情报站周报}"
 
 cd "$REPO_DIR" || { echo "错误：无法进入 $REPO_DIR"; exit 1; }
 

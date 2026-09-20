@@ -1,7 +1,7 @@
 baseURL = 'https://xianv0031.github.io/blog/'
 languageCode = 'zh-cn'
 defaultContentLanguage = 'zh-cn'
-title = '境外 GBB/AEG 简报'
+title = 'WAR GAME 情报站'
 theme = 'PaperMod'
 paginate = 10
 enableRobotsTXT = true
@@ -12,7 +12,7 @@ hasCJKLanguage = true
 buildFuture = true
 
 [params]
-  description = '每日自动采集境外（Reddit 等）GBB/AEG 资讯，排除全部国内平台'
+  description = 'Wargame 资讯博客 · 双周轮换：一周国内（SDGUN 论坛 / B站）、一周国际（Reddit / 境外媒体）'
   author = 'XIANV0031'
   ShowReadingTime = true
   ShowShareButtons = false
@@ -31,13 +31,15 @@ buildFuture = true
   comments = true          # 开启评论区（模板见 layouts/_partials/comments.html）
 
   [params.homeInfoParams]
-    Title = '境外 GBB/AEG 简报'
+    Title = 'WAR GAME 情报站'
     Content = '''
-**信源范围** 只采集境外渠道（Reddit、境外行业媒体、厂商官网），**完全排除国内平台**。
+**双轨轮换** 一周国内、一周国际，每周一 08:00 自动采集与发布。
 
-**更新频率** 每日 08:00 自动采集与发布，无需人工干预。
+**国内源** SDGUN 水弹论坛（装备测评 / 改装 / 新品爆料）+ B站（下场实战视频、专栏长文科普）。
 
-**主题范围** GBB / GBBR / AEG 器材动态、厂商新品、社群一手反馈、二手行情。
+**国际源** Reddit r/airsoft（社群一手反馈）+ 境外垂直媒体（Popular Airsoft 等）。
+
+**主题范围** Wargame 器材与装备动态、下场战术、厂商新品、社群热议、二手行情。
 '''
 
   [[params.socialIcons]]
