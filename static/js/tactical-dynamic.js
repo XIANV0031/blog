@@ -312,6 +312,44 @@
     try { buildFigureSync(); } catch (e) {}
   }
 
+  /* ==========================================================
+     6. PJAX 内容替换后的重绑定
+     ----------------------------------------------------------
+     由 tac-pjax.js 在替换完 <main> 内容后派发 tac:pjax-done。
+     这里只重跑"依赖 <main> 内部 DOM"的模块。
+
+     ⚠️ 刻意不重跑 buildBackground / buildTrace：
+        它们建的是 body 级的持久层（.tac-bg / .tac-trace），
+        这些层在 <main> 之外，PJAX 根本不会碰它们。
+        重跑会产生重复元素（虽然各有 id 守卫，但没必要冒这个险），
+        而且轨迹层的 rAF 循环与事件监听会被重复绑定 → 双倍开销。
+
+     ⚠️ buildHomeSkin 需要"反向清理"：
+        首页 → 首页 的 PJAX 下，.home-skin 始终存在，无需动作；
+        但若将来放开跨栏目 PJAX（首页 → 正文），
+        正文页不该有 .home-skin —— 这里加一个移除分支以防万一。
+     ========================================================== */
+  function rebind() {
+    // 首页背景强化层：只在有 .home-info 的页面存在
+    try {
+      var hasHome = !!document.querySelector('.home-info');
+      var skin = document.querySelector('.home-skin');
+      if (hasHome && !skin) {
+        buildHomeSkin();
+      } else if (!hasHome && skin) {
+        skin.parentNode.removeChild(skin);
+      }
+    } catch (e) {}
+
+    // 滚动渐显：新正文的块级元素需要重新观察
+    try { buildReveal(); } catch (e) {}
+
+    // figure 宽度兜底：新正文的插图需要重新绑定
+    try { buildFigureSync(); } catch (e) {}
+  }
+
+  document.addEventListener('tac:pjax-done', rebind);
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);
   } else {

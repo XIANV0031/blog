@@ -150,227 +150,30 @@
   </div>
 
   <div class="player-foot">
-    <span>未启用自动播放 · 需手动开启</span>
+    <span>点击任意处自动播放 · 跨页不中断</span>
   </div>
 </div>
 
-<script>
-(function () {
-  'use strict';
-  var root = document.getElementById('tac-player');
-  if (!root) return;
+{{- /* ---------- 音频播放器脚本 ---------- */ -}}
+{{- /* 见 static/js/tac-player.js
+       从本文件内联抽出为独立文件（2026-09-20），原因：
+         · 需与 tac-pjax.js 配合做「跨页续播」，逻辑量变大，内联不便维护；
+         · 自动播放解锁需要跨页面生命周期管理状态。
+       ⚠️ 本脚本必须在 tac-pjax.js 之前加载：PJAX 只替换 <main>，
+          播放器与 audio 实例在 <main> 之外，因此天然持久 ——
+          但若脚本在 PJAX 之后才初始化，首次进入可能错过替换时机。
+          实际两者互不依赖，顺序仅为稳妥。
+       ⚠️ 不写 defer：播放器需要在 HTML 解析到位后尽早初始化（见脚本内
+          自带的元素存在性判断），defer 会让首次播放解锁晚一拍。 */ -}}
+<script src="{{ "js/tac-player.js" | relURL }}"></script>
 
-  var dataEl = document.getElementById('tac-playlist');
-  var list = [];
-  try { list = JSON.parse(dataEl.textContent); } catch (e) { list = []; }
-  if (!list.length) return;
-
-  var audio = new Audio();
-  audio.preload = 'metadata';
-  audio.volume  = 0.55;
-
-  var $ = function (id) { return document.getElementById(id); };
-  var elPlay = $('tac-play'),  elPrev = $('tac-prev'), elNext = $('tac-next');
-  var elBar  = $('tac-bar'),   elKnob = $('tac-knob'), elProg = $('tac-progress');
-  var elTime = $('tac-time'),  elIdx  = $('tac-idx'),  elName = $('tac-name');
-  var elArtist = $('tac-artist'), elVol = $('tac-vol'), elTog = $('tac-player-toggle');
-  var elList = $('tac-list'),  elListBtn = $('tac-list-btn');
-  var elListBody = $('tac-list-body'), elDisc = $('tac-disc');
-  var elShuffle = $('tac-shuffle'), elMini = $('tac-mini');
-  var items = elListBody ? elListBody.querySelectorAll('.list-item') : [];
-
-  var cur = 0;
-  var shuffle = false;
-
-  function pad(n) { return (n < 10 ? '0' : '') + n; }
-
-  function fmt(sec) {
-    if (!isFinite(sec) || sec < 0) return '--:--';
-    return pad(Math.floor(sec / 60)) + ':' + pad(Math.floor(sec % 60));
-  }
-
-  function markList(i) {
-    for (var k = 0; k < items.length; k++) {
-      items[k].classList.toggle('is-current', k === i);
-    }
-    if (items[i] && elList && !elList.hidden) {
-      items[i].scrollIntoView({ block: 'nearest' });
-    }
-  }
-
-  function load(i, autoplay) {
-    cur = (i + list.length) % list.length;
-    var t = list[cur];
-    audio.src = t.src;
-    elIdx.textContent   = pad(cur + 1) + '/' + pad(list.length);
-    elName.textContent  = t.title  || '未知音轨';
-    elArtist.textContent = t.artist || '';
-    if (elMini) elMini.textContent = (t.title || '') + (t.artist ? ' — ' + t.artist : '');
-    elBar.style.width   = '0%';
-    if (elKnob) elKnob.style.left = '0%';
-    elProg.setAttribute('aria-valuenow', '0');
-    elTime.textContent  = '--:-- / --:--';
-    markList(cur);
-    if (autoplay) play();
-  }
-
-  function play() {
-    var p = audio.play();
-    if (p && p.catch) {
-      p.catch(function () {
-        root.classList.remove('is-playing');
-        if (elDisc) elDisc.classList.remove('is-spinning');
-        elPlay.textContent = '▶';
-      });
-    }
-  }
-
-  function toggle() {
-    if (audio.paused) {
-      if (!audio.src) load(cur, true);
-      else play();
-    } else {
-      audio.pause();
-    }
-  }
-
-  function nextIndex() {
-    if (shuffle && list.length > 1) {
-      var r;
-      do { r = Math.floor(Math.random() * list.length); } while (r === cur);
-      return r;
-    }
-    return cur + 1;
-  }
-
-  elPlay.addEventListener('click', toggle);
-  elPrev.addEventListener('click', function () {
-    // 播放超过 3 秒则回到本曲开头，否则切上一首（常见播放器行为）
-    if (audio.currentTime > 3) { audio.currentTime = 0; return; }
-    load(cur - 1, !audio.paused);
-  });
-  elNext.addEventListener('click', function () { load(nextIndex(), !audio.paused); });
-
-  if (elShuffle) {
-    elShuffle.addEventListener('click', function () {
-      shuffle = !shuffle;
-      elShuffle.classList.toggle('is-on', shuffle);
-      elShuffle.setAttribute('aria-pressed', String(shuffle));
-    });
-  }
-
-  audio.addEventListener('play', function () {
-    root.classList.add('is-playing');
-    if (elDisc) elDisc.classList.add('is-spinning');
-    elPlay.textContent = '❚❚';
-    // 播放时若处于收起态，自动展开（用户点了播放说明想看到控制）
-    if (root.classList.contains('is-collapsed')) toggleCollapse(false);
-  });
-
-  audio.addEventListener('pause', function () {
-    root.classList.remove('is-playing');
-    if (elDisc) elDisc.classList.remove('is-spinning');
-    elPlay.textContent = '▶';
-  });
-
-  audio.addEventListener('ended', function () { load(nextIndex(), true); });
-
-  audio.addEventListener('timeupdate', function () {
-    var d = audio.duration;
-    if (!d || !isFinite(d)) return;
-    var pct = (audio.currentTime / d) * 100;
-    elBar.style.width = pct.toFixed(2) + '%';
-    if (elKnob) elKnob.style.left = pct.toFixed(2) + '%';
-    elProg.setAttribute('aria-valuenow', String(Math.round(pct)));
-    elTime.textContent = fmt(audio.currentTime) + ' / ' + fmt(d);
-  });
-
-  audio.addEventListener('loadedmetadata', function () {
-    elTime.textContent = '00:00 / ' + fmt(audio.duration);
-  });
-
-  audio.addEventListener('error', function () {
-    elTime.textContent = '加载失败';
-    root.classList.remove('is-playing');
-    if (elDisc) elDisc.classList.remove('is-spinning');
-    elPlay.textContent = '▶';
-  });
-
-  function seek(ev) {
-    var d = audio.duration;
-    if (!d || !isFinite(d)) return;
-    var r = elProg.getBoundingClientRect();
-    var x = (ev.clientX !== undefined ? ev.clientX : r.left) - r.left;
-    var pct = Math.min(1, Math.max(0, x / r.width));
-    audio.currentTime = pct * d;
-  }
-
-  elProg.addEventListener('click', seek);
-  elProg.addEventListener('keydown', function (e) {
-    var d = audio.duration;
-    if (!d || !isFinite(d)) return;
-    if (e.key === 'ArrowRight') { audio.currentTime = Math.min(d, audio.currentTime + 5); e.preventDefault(); }
-    if (e.key === 'ArrowLeft')  { audio.currentTime = Math.max(0, audio.currentTime - 5); e.preventDefault(); }
-    if (e.key === ' ' || e.key === 'Enter') { toggle(); e.preventDefault(); }
-  });
-
-  elVol.addEventListener('input', function () {
-    audio.volume = (parseInt(elVol.value, 10) || 0) / 100;
-  });
-
-  // 播放列表：点击某一项切歌
-  if (elListBody) {
-    elListBody.addEventListener('click', function (e) {
-      var li = e.target.closest ? e.target.closest('.list-item') : null;
-      if (!li) return;
-      var i = parseInt(li.dataset.i, 10);
-      if (isNaN(i)) return;
-      if (i === cur) { toggle(); return; }
-      load(i, true);
-    });
-  }
-
-  // 播放列表展开 / 收起
-  function toggleList(force) {
-    if (!elList) return;
-    var show = (typeof force === 'boolean') ? force : elList.hidden;
-    elList.hidden = !show;
-    if (elListBtn) {
-      elListBtn.setAttribute('aria-expanded', String(show));
-      elListBtn.classList.toggle('is-on', show);
-    }
-    if (show && items[cur]) items[cur].scrollIntoView({ block: 'nearest' });
-  }
-  if (elListBtn) {
-    elListBtn.addEventListener('click', function () { toggleList(); });
-  }
-
-  // 整机收起 / 展开（只留标题条）
-  function toggleCollapse(collapsed) {
-    var next = (typeof collapsed === 'boolean') ? collapsed : !root.classList.contains('is-collapsed');
-    root.classList.toggle('is-collapsed', next);
-    elTog.textContent = next ? '▲' : '▼';
-    elTog.setAttribute('aria-label', next ? '展开播放器' : '收起播放器');
-    if (next) toggleList(false);  // 收起时顺带收起列表
-  }
-  elTog.addEventListener('click', function (e) {
-    e.stopPropagation();
-    toggleCollapse();
-  });
-  // 点标题条任意处也可切换
-  var elHead = $('tac-head');
-  if (elHead) elHead.addEventListener('click', function () { toggleCollapse(); });
-
-  // 键盘：空格切换播放（不在输入框内时）
-  document.addEventListener('keydown', function (e) {
-    if (e.key !== ' ' && e.code !== 'Space') return;
-    var tag = (e.target && e.target.tagName || '').toLowerCase();
-    if (tag === 'input' || tag === 'textarea' || tag === 'button' || tag === 'a') return;
-    if (e.target && e.target.isContentEditable) return;
-    toggle();
-    e.preventDefault();
-  });
-
-  load(0, false);
-})();
-</script>
+{{- /* ---------- 站内局部替换导航（PJAX）---------- */ -}}
+{{- /* 见 static/js/tac-pjax.js
+       作用：拦截站内链接，只替换 <main> 的内容，
+             让播放器/动态层/audio 实例跨页面存活 → 音乐无缝续播。
+       ⚠️ 必须放在播放器脚本之后：PJAX 是"锦上添花"，
+          若它初始化失败（或浏览器不支持），播放器本身仍应可用。
+          放在后面可确保播放器优先完成初始化。
+       ⚠️ 放在 <main> 之外（footer 内）是刻意的：这样它的 DOM 位置
+          不会被自己发起的替换影响。 */ -}}
+<script src="{{ "js/tac-pjax.js" | relURL }}"></script>
