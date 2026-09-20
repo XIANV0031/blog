@@ -10,6 +10,7 @@
 # 产物：
 #   *.rss / *.xml / *.html  原始素材（供 AI 读取撰写简报）
 #   pa_official/*.jpg       **官方贴题配图**（Popular Airsoft 官方产品图，首选）
+#                            —— 封面 与 正文插图 共用此图池
 #   covers-map.json         标题 → 配图 映射表（含置信度，供选图参考）
 #   covers/cover-NN.jpg     Reddit 兜底图（官方源不可用时使用）
 #
@@ -291,6 +292,7 @@ fi
 
 echo
 echo "下一步："
+echo "  ── A. 封面图 ──"
 echo "  1) 读 covers-map.json，按文章主题选定官方图（置信度 high 可直接用；"
 echo "     medium/low 需人工确认；标记「重复」的说明多篇同主题，择一或换图）"
 echo "  2) 若某篇文章在 2026 年目录下无对应官方图（多为更早的产品），"
@@ -302,7 +304,33 @@ echo "     ⚠️ 采集图比例极不统一（实测 0.56 ~ 3.81）。"
 echo "        入库前必须统一宽度到 1600px，最终比例由 CSS 的"
 echo "        aspect-ratio + object-fit:cover 归一化。"
 echo "  4) 在 front matter 写 cover.image / cover.alt / cover.caption"
-echo "  5) 运行 publish.sh"
+echo
+echo "  ── B. 正文插图（图池同上，取自 pa_official/）──"
+echo "  5) 复制插图到 static/images/posts/<日期>-<slug>.jpg"
+echo "     ⚠️ 统一宽度到 1400px（与封面 1600 区分使用，避免同一图两处同尺寸）"
+echo
+echo "  6) 【第一张图规则】正文开头必须有且仅有一张「定调首图」，"
+echo "     优先级：开箱图 > 官网宣传图 > 官网产品图；"
+echo "     若主题涉及动漫（如《莉可丽丝》联名），首图必须是**动漫相关**图"
+echo "     （动画原画 / 官方联名宣传图）。"
+echo "     ⚠️ 实拍演示图、评测实拍图 只能作为第二张及以后，不得占首图位。"
+echo
+echo "  7) 【各小节配图】每个小节可配一张该产品自己的图，"
+echo "     同样优先开箱图/官网宣传图；只有实拍图可用时，"
+echo "     须在图注末尾注明「（评测实拍，非官网产品图）」。"
+echo
+echo "  8) Markdown 写法（图注 = title 部分，会渲染为 <figcaption>）："
+echo '     ![替代文本](images/posts/xxx.jpg "图注文字 · 图源：XXX")'
+echo "     ⚠️ 需给图片加 class 时，属性块**必须独占一行**写在图片下方："
+echo '       ![alt](src "cap")'
+echo '       {class="wide-banner"}'
+echo "       写在同行（![...](...){class=...}）会被静默忽略。"
+echo "     ⚠️ 超宽横幅图（厂商长条宣传图，比例 >3:1）务必加 {class=\"wide-banner\"}，"
+echo "        否则 16:9 框会横向裁掉大量内容。"
+echo
+echo "  9) 不要给封面用过的图重复做正文首图（同图不同裁切可接受）"
+echo
+echo "  10) 运行 publish.sh"
 
 # 退出码约定：
 #   0 = 正常（即使部分源失败，只要主力源有数据）

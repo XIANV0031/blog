@@ -999,3 +999,154 @@ details.toc summary {
     );
   }
 }
+
+/* ============ 14. 正文插图（Markdown ![]() 渲染的 figure） ============ */
+/* 用途：小节内各产品配图。Hugo 默认把 `![alt](src "title")` 渲染成
+   <img> 包在 <p> 里；若开了 markup.goldmark.renderHooks.image 则渲染成
+   <figure><img><figcaption></figure>。这里同时兼容两种情况。
+
+   ⚠️ 关键约束：插图来源与封面同样杂乱（实测 630×420 ~ 3840×1008），
+      故同样必须用「固定 aspect-ratio + object-fit: cover」归一化，
+      否则正文段落间距会被不同高度的图撕得忽宽忽窄。
+
+   比例选择：正文插图用 16:9。比封面（16:6）更方，因为正文图要看清细节，
+   而封面是"门面"、只需气势。 */
+
+/* --- 图片本身 --- */
+
+/* ⚠️ 排除表：`.post-content` 里除了正文插图，还混着若干非内容图片。
+   不加排除会被一并套上 16:9 裁切与斜角，表现为 TOC 图标变形、
+   页脚 logo 被切、代码块里的图片错位。
+   见 skill hugo-github-pages-deploy 「宽泛选择器污染」一条。 */
+.post-content img:not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame) {
+  display: block;
+  width: 100% !important;
+  height: auto !important;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 0 !important;
+  /* 斜角嵌板：与站点几何语言一致（右上 + 左下切角） */
+  clip-path: polygon(
+    0 0,
+    calc(100% - 16px) 0,
+    100% 16px,
+    100% 100%,
+    16px 100%,
+    0 calc(100% - 16px)
+  );
+  border: 1px solid var(--metal-edge);
+  background: var(--mil-green-800);
+  /* 战术滤镜：统一不同来源图的色温。
+     ⚠️ brightness 压得比封面更狠（0.86 vs 0.92）：正文里有大量
+        东京丸井官方图是纯白底棚拍（#f0f0f0），在暗色站点里会像
+        一块亮斑，严重割裂。压暗后可显著降低白底的刺眼感。 */
+  filter: saturate(0.86) contrast(1.05) brightness(0.86);
+  transition: filter 0.42s var(--ease-out), transform 0.46s var(--ease-out);
+}
+
+.post-content img:not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame):hover {
+  filter: saturate(1) contrast(1.07) brightness(1);
+}
+
+/* --- 官方棚拍图（纯白底）专项压制 ---
+   东京丸井等厂商的官方产品图均为白底棚拍，与暗色站点反差极大。
+   给这类图额外加一层暗色叠层 + 内阴影，模拟"卡片嵌入暗底"的效果。
+   用法：markdown 里给图片加 class（![alt](src "cap"){.official-shot}） */
+.post-content figure:has(img.official-shot),
+.post-content p:has(img.official-shot) {
+  position: relative;
+}
+
+.post-content img.official-shot {
+  /* 白底图单独再压暗一档，并略降对比避免死黑。
+     ⚠️ 同样必须带完整 :not() 排除链，否则会被主规则的 filter 覆盖。 */
+  filter: saturate(0.78) contrast(0.98) brightness(0.78) !important;
+}
+
+/* 上一条的边缘情况：official-shot 与 wide-banner 同时命中时的 filter 优先级 */
+.post-content img.official-shot:not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame) {
+  filter: saturate(0.78) contrast(0.98) brightness(0.78) !important;
+}
+
+/* --- figure 包裹（若启用了 render hook）--- */
+.post-content figure {
+  position: relative;
+  margin: 1.5rem 0;
+  padding: 0;
+}
+
+/* --- 超宽横幅图（如厂商横向长条宣传图）---
+   厂商官网常有 3:1 以上的超宽横幅（东京丸井 p_main 为 3.81:1）。
+   套 16:9 会横向裁掉大量内容。给这类图放宽到 2.6:1，
+   保留「左侧动画/场景 + 右侧产品」的完整叙事。
+
+   ⚠️ 选择器必须带上完整的 :not() 排除链！
+      主规则的 `.post-content img:not(...):not(...)` 特异性为
+      (0,1,4)，仅写 `.post-content img.wide-banner` 只有 (0,2,1)，
+      **权重不够会被主规则的 aspect-ratio 覆盖**（静默失效，不报错）。
+      故此处照抄排除链再加 .wide-banner。 */
+.post-content img.wide-banner:not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame) {
+  aspect-ratio: 2.6 / 1;
+}
+
+/* --- figcaption：题注铭牌（与封面题注同款语言）--- */
+.post-content figcaption {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  text-align: left;
+  padding: 7px 10px 7px 12px;
+  margin: 0;
+  background: rgba(13, 20, 16, 0.6);
+  border-top: 1px solid rgba(217, 164, 65, 0.22);
+  border-left: 2px solid rgba(217, 164, 65, 0.45);
+  /* 右下切角，呼应图片的斜角 */
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%);
+}
+
+/* --- 纯 <p><img></p> 的情况：去掉 <p> 的多余边距 --- */
+.post-content p:has(> img) {
+  margin: 1.5rem 0;
+  padding: 0;
+}
+/* 兼容不支持 :has() 的浏览器（老 Firefox）：退化为普通段落间距 */
+.post-content p > img:only-child {
+  margin: 0;
+}
+
+/* --- 独占一行的图（带 title 的写法）：居中 + 限宽，避免小图被拉到满宽 --- */
+/* 竖图（如 630×420 的实拍竖构图）在 16:9 框里会被裁掉上下 → 单独放宽比例 */
+.post-content img[data-orient="portrait"] {
+  aspect-ratio: 4 / 5;
+}
+
+/* --- 窄屏：切角收小，比例回调 --- */
+@media (max-width: 768px) {
+  /* ⚠️ 排除表必须与上面的主规则逐字一致！
+     漏写 :not() 会让 TOC 图标、锚点链接、脚注回链在窄屏下
+     被套上 4/3 裁切 + 斜角，表现为图标变形/被切。
+     见 skill hugo-github-pages-deploy 「宽泛选择器污染」一条。 */
+  .post-content img:not(.toc-icon):not(.anchor):not(.footnote-backref):not(.giscus-frame) {
+    aspect-ratio: 4 / 3;
+    clip-path: polygon(
+      0 0,
+      calc(100% - 10px) 0,
+      100% 10px,
+      100% 100%,
+      10px 100%,
+      0 calc(100% - 10px)
+    );
+  }
+  .post-content figure {
+    margin: 1.15rem 0;
+  }
+  .post-content figcaption {
+    font-size: 10px;
+    padding: 6px 9px;
+  }
+}
+

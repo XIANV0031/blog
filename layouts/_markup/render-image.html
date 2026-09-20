@@ -1,0 +1,63 @@
+{{- /* ------------------------------------------------------------------
+     正文插图渲染钩子（覆盖主题同名文件）
+     ------------------------------------------------------------
+     为什么覆盖：主题原版只输出裸 <img>，不生成 <figure>/<figcaption>，
+     无法承载「图注」。用户要求正文插图必须带图注。
+     本文件补上 figure + figcaption 结构。
+
+     用法（在 markdown 里）：
+       ![替代文本](图片路径 "图注文字")
+
+     · alt      → <img alt>（无障碍 + 加载失败时的提示）
+     · title    → <figcaption>（**这就是图注**）
+     · 其余属性（width/height/class…）原样透传
+
+     路径解析：沿用主题逻辑 —— 相对路径优先在 page bundle / global
+     resources 里找；找不到就按相对路径原样输出（配合 relURL 保证
+     本地与线上都可访问）。见 skill 「absURL 本地裂图」一条。
+
+     ⚠️⚠️ 两个致命坑（踩过，改动前务必先读）：
+     1) 属性必须与 `<img` 在同一「行」内用 printf 输出，绝不能写成
+        `<img` 换行 + 缩进 + `src="..."`。Hugo 的 HTML 压缩器会把
+        换行+缩进整体吃掉，产出 `<imgsrc="...">` —— 标签名变成 imgsrc，
+        图片**完全不会加载**，且 CSS/JS 全部查不到图，极难排查。
+        所以此处沿用主题原版的写法：merge 成一个 dict 再逐条 printf。
+     2) Goldmark 默认**不会**把独占一段落的图片从 <p> 里提出来，
+        会在 <img> 外面套一层 <p>。而 <figure> 嵌在 <p> 里是非法 HTML，
+        浏览器解析时会把 <p> 提前闭合、figure 提到 p 外面，导致
+        DOM 结构与源码不一致。故在 hugo.toml 里开启
+        `markup.goldmark.parser.wrapStandAloneImageWithinParagraph = false`
+        让 Goldmark 自己就用 <figure> 包裹（配合本 hook 的 figure 输出，
+        外层 <p> 消失）。见 skill 「render hook 与段落包裹」一条。
+     ------------------------------------------------------------------ */ -}}
+
+{{- $u := urls.Parse .Destination -}}
+{{- $src := $u.String -}}
+{{- if not $u.IsAbs -}}
+  {{- $path := strings.TrimPrefix "./" $u.Path }}
+  {{- with or (.PageInner.Resources.Get $path) (resources.Get $path) -}}
+    {{- $src = .RelPermalink -}}
+    {{- with $u.RawQuery -}}
+      {{- $src = printf "%s?%s" $src . -}}
+    {{- end -}}
+    {{- with $u.Fragment -}}
+      {{- $src = printf "%s#%s" $src . -}}
+    {{- end -}}
+  {{- else -}}
+    {{- /* 静态目录下的图：走 relURL，保证本地/线上都能访问 */ -}}
+    {{- $src = $u.Path | relURL -}}
+  {{- end -}}
+{{- end -}}
+
+{{- $attrs := merge .Attributes (dict "alt" .Text "src" $src "loading" "lazy" "decoding" "async") -}}
+<figure class="post-figure"><img
+  {{- range $k, $v := $attrs -}}
+    {{- if $v -}}
+      {{- printf " %s=%q" $k $v | safeHTMLAttr -}}
+    {{- end -}}
+  {{- end -}}>
+  {{- with .Title }}
+<figcaption>{{ . | $.Page.RenderString }}</figcaption>
+  {{- end -}}
+</figure>
+{{- /**/ -}}

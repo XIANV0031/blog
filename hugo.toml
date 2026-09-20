@@ -88,6 +88,21 @@ buildFuture = true
 
 [markup]
   [markup.goldmark]
+    # ⚠️ 必须关掉「独占段落的图片自动包 <p>」：
+    # 否则 ![alt](src "title") 会被渲染成 <p><figure>...</figure></p>。
+    # <figure> 嵌在 <p> 内是非法 HTML，浏览器会把 <p> 提前闭合并把
+    # figure 提到外面，DOM 结构与源码不一致，CSS 选择器容易失准。
+    # 关掉后 Goldmark 直接用 <figure> 包裹，配合
+    # layouts/_markup/render-image.html 输出 <figcaption> 承载图注。
+    [markup.goldmark.parser]
+      wrapStandAloneImageWithinParagraph = false
+      # ⚠️ 必须开启 attribute 扩展，否则 Markdown 里的 `{class="..."}`
+      # 属性块不会被解析，render hook 里 .Attributes 为空 →
+      # class 属性静默丢失（不报错，极难排查）。
+      # 用途：给特定图片挂类，如超宽横幅图的 {class="wide-banner"}。
+      [markup.goldmark.parser.attribute]
+        block = true
+        title = true
     [markup.goldmark.renderer]
       unsafe = true
   [markup.highlight]
