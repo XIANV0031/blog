@@ -15,7 +15,19 @@
     bili_video.json           B站视频检索结果
     bili_article.json         B站专栏检索结果
     bili_article_body_<cv>.json  B站专栏正文
+    images/                   下载好的图片（SDGUN 主楼图优先 + B站封面）
+    images_manifest.json      图片下载清单（文件 / 原 URL / 来源 / 字节数 / 失败原因）
     sources.json              采集汇总与状态
+
+【图片下载的三个坑（2026-09-20 实测）】
+1. **picapp.sdgun.net 必须走 HTTPS** —— JSON 里采到的是 `http://` 明文 URL，
+   http 版本只返回约 563 字节的防盗链占位图，https 版本才是真图（15KB+）。
+   两者都返回 HTTP 200，不校验字节数会静默拿到一堆坏图。
+2. **必须用 shell 重定向落盘** —— 沙箱下 `curl -o` 被拦截，报
+   `curl: (23) Failure writing output to destination`，但状态码仍是 200。
+   本脚本用 subprocess 把 curl 的 stdout 重定向到文件句柄来绕过。
+3. **必须带 Referer** —— 不带 referer 也会拿到占位图。
+   脚本对 SDGUN 用 `https://bbs.sdgun.com.cn/`，对 B站用 `https://www.bilibili.com/`。
 
 【两个必须遵守的实现约束（踩过坑）】
 1. 网络：本机 Clash 为 TUN 模式，在系统层劫持 DNS 到 fake-IP(198.18.x.x)。
@@ -25,6 +37,14 @@
 2. SDGUN 必须带会话 Cookie（discuz_2132_saltkey）：
    部分版块（如 fid=153 卫星区）直接访问会 302 跳 misc.php?mod=mobile。
    脚本先访问首页拿 Cookie，再带 Cookie 请求各版块。
+   ⚠️ `http.cookiejar.CookieJar` 空 jar 的布尔值是 False（它实现了 __len__），
+      故判 None 必须用 `is not None`。写成 `if cookie_jar` 会让传入的空 jar
+      被判为 falsy 而新建一个立刻丢弃的临时 jar，症状是 Cookie 数恒为 0
+      但所有请求都返回 200（列表页恰好不需要 Cookie，极难发现）。
+   ⚠️ 会话建立必须 follow=True —— `forum.php?mobile=2` 会 302 跳 portal.php，
+      全部 Cookie 都在跳转后的 200 响应里；且必须走 https，
+      因为 cookie 带 secure 标记，http 请求下会被 cookiejar 按 RFC 6265 拒收。
+   ⚠️ Cookie 下发是概率性的，故加 5 次重试直到拿到 saltkey。
 
 【已实测结论（2026-09-20）】
 - SDGUN：域名 bbs.sdgun.com.cn（sdgun.net 已废弃）
@@ -173,6 +193,172 @@ def save(outdir, name, obj):
     with open(p, 'w', encoding='utf-8') as f:
         json.dump(obj, f, ensure_ascii=False, indent=2)
     return p
+
+
+# ---------------- 图片下载 ----------------
+
+IMAGE_EXTS = ('.jpg', '.jpeg', '.png', '.gif', '.webp')
+VIDEO_EXTS = ('.mp4', '.mov', '.webm')
+
+
+def img_upgrade_scheme(u):
+    """picapp.sdgun.net 的图片必须走 HTTPS。
+
+    ⚠️ 实测（2026-09-20）：http:// 版本只返回 **563 字节防盗链占位图**，
+       https:// 版本才返回真图（15KB+）。JSON 里采到的是 http 明文 URL，
+       直接下载会得到一堆无法分辨的坏图，且 curl 返回 200 看不出异常。
+    """
+    u = (u or '').strip()
+    if u.startswith('http://picapp.sdgun.net/'):
+        return 'https://' + u[len('http://'):]
+    if u.startswith('//'):
+        return 'https:' + u
+    return u
+
+
+def img_kind(u):
+    """按扩展名判定类型：img / video / other"""
+    low = u.lower().split('?')[0]
+    if low.endswith(IMAGE_EXTS):
+        return 'img'
+    if low.endswith(VIDEO_EXTS):
+        return 'video'
+    return 'other'
+
+
+def guess_ext(u, content_type=''):
+    low = u.lower().split('?')[0]
+    for e in IMAGE_EXTS:
+        if low.endswith(e):
+            return e
+    if 'png' in content_type:
+        return '.png'
+    if 'gif' in content_type:
+        return '.gif'
+    if 'webp' in content_type:
+        return '.webp'
+    return '.jpg'
+
+
+def download_image(url, dest, referer, timeout=25):
+    """下载单张图。返回 (ok, bytes, err)。
+
+    ⚠️ 必须用 `curl ... > 文件` 的形式（shell 重定向）。
+       沙箱下 `curl -o` 落盘被拦截，表现为 `curl: (23) Failure writing output
+       to destination`，而 HTTP 状态码仍是 200 —— 极易误判为"下载成功"。
+       本函数通过 subprocess 调 curl，把 stdout 重定向到文件句柄，等效于 shell `>`。
+    """
+    import subprocess
+    u = img_upgrade_scheme(url)
+    try:
+        with open(dest, 'wb') as fh:
+            p = subprocess.run(
+                ['curl', '-sS', '-L', '-m', str(timeout),
+                 '-A', UA_MOBILE,
+                 '-e', referer or 'https://bbs.sdgun.com.cn/',
+                 u],
+                stdout=fh, stderr=subprocess.PIPE)
+        if p.returncode != 0:
+            try:
+                os.remove(dest)
+            except OSError:
+                pass
+            return False, 0, 'curl rc=%d %s' % (p.returncode,
+                                                p.stderr.decode('utf-8', 'replace')[:120])
+        size = os.path.getsize(dest) if os.path.exists(dest) else 0
+        if size < 1024:
+            # 防盗链占位图约 563 字节；真图通常 >10KB
+            try:
+                os.remove(dest)
+            except OSError:
+                pass
+            return False, size, 'too small (%d B) — 疑似防盗链占位图' % size
+        # 魔数校验
+        with open(dest, 'rb') as fh:
+            head = fh.read(4)
+        if not (head[:3] == b'\xff\xd8\xff' or head[:4] == b'\x89PNG'
+                or head[:3] == b'GIF' or head[:4] == b'RIFF'):
+            try:
+                os.remove(dest)
+            except OSError:
+                pass
+            return False, size, 'bad magic %r' % head[:4]
+        return True, size, ''
+    except Exception as e:
+        return False, 0, str(e)[:120]
+
+
+def collect_image_candidates(sdgun_threads, bili_videos, bili_articles,
+                             limit_per_thread=6, limit_bili=4):
+    """汇总待下载图片清单（SDGUN 帖子图优先，其次 B站封面）。
+
+    返回 [{url, kind, source, tag}]
+    """
+    out, seen = [], set()
+
+    def push(u, source, tag):
+        u = img_upgrade_scheme(u)
+        if not u or u in seen:
+            return
+        k = img_kind(u)
+        if k != 'img':          # 视频与未知扩展名跳过
+            return
+        seen.add(u)
+        out.append({'url': u, 'source': source, 'tag': tag,
+                    'kind': k})
+
+    # SDGUN：主楼图优先（最贴题），按帖子顺序
+    for t in sdgun_threads:
+        if t.get('error'):
+            continue
+        n = 0
+        for u in (t.get('images_main') or []):
+            push(u, 'sdgun:%s' % t.get('tid'), t.get('title', '')[:40])
+            n += 1
+            if n >= limit_per_thread:
+                break
+
+    # B站视频封面
+    for v in bili_videos[:limit_bili]:
+        push(v.get('cover', ''), 'bili-video:%s' % v.get('bvid', ''),
+             v.get('title', '')[:40])
+
+    # B站专栏封面
+    for a in bili_articles[:limit_bili]:
+        push(a.get('cover', ''), 'bili-article:%s' % a.get('cv', ''),
+             a.get('title', '')[:40])
+
+    return out
+
+
+def download_all(cands, outdir, tag_prefix=''):
+    """批量下载，返回 (manifest, stats)。存入 outdir/images/"""
+    imgdir = os.path.join(outdir, 'images')
+    os.makedirs(imgdir, exist_ok=True)
+    manifest, ok, fail = [], 0, 0
+    for i, c in enumerate(cands, 1):
+        src = c['source']
+        if src.startswith('sdgun'):
+            referer = 'https://bbs.sdgun.com.cn/'
+        elif src.startswith('bili'):
+            referer = 'https://www.bilibili.com/'
+        else:
+            referer = ''
+        ext = guess_ext(c['url'])
+        # 用 source 生成稳定文件名（URL 里的数字 ID 已足够唯一）
+        safe_src = re.sub(r'[^\w\-]', '_', src)
+        name = '%s%02d_%s%s' % (tag_prefix, i, safe_src, ext)
+        dest = os.path.join(imgdir, name)
+        okk, size, err = download_image(c['url'], dest, referer)
+        if okk:
+            ok += 1
+            manifest.append({'file': name, 'url': c['url'], 'source': src,
+                             'tag': c['tag'], 'bytes': size})
+        else:
+            fail += 1
+            manifest.append({'file': None, 'url': c['url'], 'source': src,
+                             'tag': c['tag'], 'error': err})
+    return manifest, {'ok': ok, 'fail': fail, 'dir': imgdir}
 
 
 # ---------------- SDGUN ----------------
@@ -672,6 +858,26 @@ def main():
             'article_bodies': len(bodies),
         }
 
+    # ---------- 图片下载 ----------
+    print('\n【图片下载】')
+    _v = videos if 'videos' in dir() else []
+    _a = arts if 'arts' in dir() else []
+    cands = collect_image_candidates(details, _v, _a)
+    if not cands:
+        print('  无可下载图片（跳过）')
+        sources['images'] = {'ok': 0, 'fail': 0, 'candidates': 0}
+    else:
+        print('  候选 %d 张（SDGUN 主楼图优先），开始下载...' % len(cands))
+        manifest, st_img = download_all(cands, outdir, tag_prefix='')
+        save(outdir, 'images_manifest.json', manifest)
+        print('  成功 %d / 失败 %d → %s' % (
+            st_img['ok'], st_img['fail'], st_img['dir']))
+        bad = [m for m in manifest if m.get('error')]
+        for m in bad[:6]:
+            print('    ✗ %s | %s' % (m['source'], m['error']))
+        sources['images'] = dict(st_img)
+        sources['images']['candidates'] = len(cands)
+
     # ---------- 汇总 ----------
     save(outdir, 'sources.json', sources)
 
@@ -683,6 +889,8 @@ def main():
         len(videos) if 'videos' in dir() else 0,
         len(arts) if 'arts' in dir() else 0,
         len(bodies) if 'bodies' in dir() else 0))
+    if 'st_img' in dir():
+        print('  图片: %d 张入库 / %d 张失败' % (st_img['ok'], st_img['fail']))
     print('  产物目录:', outdir)
     print('=' * 64)
 
