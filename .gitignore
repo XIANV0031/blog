@@ -10,6 +10,7 @@ resources/_gen/
 public-preview/
 public-preview-kb/
 public-preview-gear/
+public-preview-ocp/
 
 # 系统文件
 .DS_Store
