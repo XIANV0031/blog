@@ -1,0 +1,40 @@
+{{- define "main" }}
+
+{{- /* ============================================================
+     首页 —— 「本站说明及联系方式」
+     ------------------------------------------------------------
+     由 content/_index.md 的 `layout: "about"` 指定。
+
+     ⚠️⚠️ 关键：外层必须用 class="first-entry home-info"
+     ------------------------------------------------------------
+     站点的全部首页动效都绑定在这个类名上，不是绑定在「首页」这个位置上：
+       · tactical.css 第 4 节      —— 面板化、斜角嵌板、四角角标
+       · tactical-motion.css 第 3 节 —— 入场动画（整条砸落 / 面板放大滑入 /
+                                       标题擦除展开 / 正文斜切推入）
+       · tactical-motion.css 第 8 节 —— 标题左侧脉冲指示灯
+       · tactical-motion.css 第 9 节 —— 内容面板四角 L 形角标
+       · tactical-cover.css .home-skin —— 顶部光斑 + 斜向刻度带背景层
+       · tactical-dynamic.js buildHomeSkin() —— 检测 .home-info 才建背景层
+
+     所以这里不是「模仿」那些动效，而是直接复用同一套类名，
+     动效原封不动继承过来。换成别的类名，动效会全部静默消失。
+
+     结构也与主题的 home_info.html 保持一致（entry-header / entry-content /
+     entry-footer 三段），否则 CSS 选择器链会断。
+     ============================================================ */ -}}
+
+<article class="first-entry home-info">
+  <header class="entry-header">
+    <h1>{{ .Title }}</h1>
+  </header>
+
+  <div class="entry-content md-content">
+    {{ .Content }}
+  </div>
+
+  <footer class="entry-footer">
+    {{- partial "social_icons.html" (dict "align" "right") }}
+  </footer>
+</article>
+
+{{- end }}{{/* end main */}}

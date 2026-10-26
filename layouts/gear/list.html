@@ -1,0 +1,69 @@
+{{- define "main" }}
+
+{{- /* ============================================================
+     单兵装备（/gear/）—— 分栏列表页
+     ------------------------------------------------------------
+     ⚠️ 关键：卡片必须用 class="post-entry"（和情报站文章卡片同一个类名）
+     ------------------------------------------------------------
+     站点的卡片动效全部绑定在 .post-entry 上：
+       · tactical.css 第 5 节        —— 斜角嵌板、左侧色条、右上铆钉
+       · tactical-motion.css 第 5 节 —— hover 五层动画（扫描条 / 斜向光泽 /
+                                        边框辉光 / 标题位移 / 摘要提亮）
+       · tactical-motion.css 第 3 节 —— 入场动画
+       · tactical-cover.css          —— 封面缩放与题注铭牌
+
+     用 .post-entry 就自动继承这一整套；换成自定义类名（如 .kb-card），
+     动效会全部静默消失 —— 这就是之前「差距一眼看出来」的原因。
+
+     分页也沿用主题的 .page-footer / .pagination 结构。
+     ============================================================ */ -}}
+
+{{- $pages := .RegularPages.ByDate.Reverse -}}
+
+{{- if .Content }}
+<div class="gear-intro md-content">{{ .Content }}</div>
+{{- end }}
+
+{{- if $pages }}
+{{- $paginator := .Paginate $pages 10 }}
+{{- range $paginator.Pages }}
+
+{{- $isHidden := (.Param "cover.hiddenInList") | default (.Param "cover.hidden") | default false }}
+<article class="post-entry">
+  {{- partial "cover.html" (dict "cxt" . "IsSingle" false "isHidden" $isHidden) }}
+  <header class="entry-header">
+    <h2 class="entry-hint-parent">{{ .Title }}</h2>
+  </header>
+  {{- if (ne (.Param "hideSummary") true) }}
+  <div class="entry-content">
+    <p>{{ .Summary | plainify | htmlUnescape }}{{ if .Truncated }}...{{ end }}</p>
+  </div>
+  {{- end }}
+  {{- if not (.Param "hideMeta") }}
+  <footer class="entry-footer">
+    {{- partial "post_meta.html" . -}}
+  </footer>
+  {{- end }}
+  <a class="entry-link" aria-label="post link to {{ .Title | plainify }}" href="{{ .Permalink }}"></a>
+</article>
+
+{{- end }}
+
+{{- if gt $paginator.TotalPages 1 }}
+<footer class="page-footer">
+  <nav class="pagination">
+    {{- if $paginator.HasPrev }}
+    <a class="prev" href="{{ $paginator.Prev.URL | absURL }}">«&nbsp;{{ i18n "prev_page" }}&nbsp;</a>
+    {{- end }}
+    {{- if $paginator.HasNext }}
+    <a class="next" href="{{ $paginator.Next.URL | absURL }}">{{ i18n "next_page" }}&nbsp;»</a>
+    {{- end }}
+  </nav>
+</footer>
+{{- end }}
+
+{{- else }}
+<p class="gear-empty">这一栏还没写东西。等想写了再填。</p>
+{{- end }}
+
+{{- end }}{{/* end main */}}

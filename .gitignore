@@ -8,6 +8,8 @@ resources/_gen/
 
 # 本地预览产物（临时，不提交）
 public-preview/
+public-preview-kb/
+public-preview-gear/
 
 # 系统文件
 .DS_Store

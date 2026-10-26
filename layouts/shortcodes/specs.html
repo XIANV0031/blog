@@ -1,0 +1,49 @@
+{{- /* ============================================================
+     参数表 shortcode
+     ------------------------------------------------------------
+     用法：
+       {{< specs >}}
+       排水量 | 8,200 吨
+       全长 | 152.4 米
+       动力 | CODOG（2 燃机 + 2 柴油机）
+       {{< /specs >}}
+
+     规则：每行一条，用 | 分隔键与值（全角｜也认）。
+          以 # 开头的行当注释跳过；空行忽略。
+
+     为什么用 shortcode 而不是 front matter 的 specs：
+       front matter 的 specs 适合「整篇就一个主角」的装备条目；
+       但战史、原理类文章常常要并列对比好几组参数，
+       这时需要正文中就地插入多个表。
+     ============================================================ */ -}}
+
+{{- $raw := .Inner | strings.TrimSpace -}}
+{{- $rows := slice -}}
+{{- range (split $raw "\n") -}}
+  {{- $line := . | strings.TrimSpace -}}
+  {{- if and $line (not (hasPrefix $line "#")) -}}
+    {{- $sep := "|" -}}
+    {{- if not (in $line "|") }}{{ $sep = "｜" }}{{ end -}}
+    {{- $parts := split $line $sep -}}
+    {{- if ge (len $parts) 2 -}}
+      {{- $rows = $rows | append (dict "k" (index $parts 0 | strings.TrimSpace) "v" (delimit (after 1 $parts) $sep | strings.TrimSpace)) -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- with $rows }}
+<aside class="kb-specs kb-specs-inline">
+  <div class="kb-specs-head">
+    <span class="kb-specs-label">PARAMETERS</span>
+    <span class="kb-specs-title">{{ $.Get "title" | default "参数" }}</span>
+  </div>
+  <dl class="kb-specs-grid">
+    {{- range . }}
+    <div class="kb-spec-row">
+      <dt>{{ .k }}</dt>
+      <dd>{{ .v }}</dd>
+    </div>
+    {{- end }}
+  </dl>
+</aside>
+{{- end -}}

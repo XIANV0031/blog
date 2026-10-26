@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# WAR GAME 情报站 —— 发布脚本
+# WAR GAME 情报站 + 军事科普库 —— 发布脚本
 # 用途：本地构建校验 → 提交 → 推送到 GitHub（触发 Pages 更新）
 #
 # 用法：bash publish.sh "提交信息"
@@ -7,7 +7,14 @@
 # 前置条件：
 #   1. git 凭据已配置（~/.git-credentials + credential.helper=store）
 #      —— 无需 GITHUB_TOKEN，推送走凭据管理器，可无人值守
-#   2. 文章 markdown 已放入 content/posts/
+#   2. 文章 markdown 已放入 content/posts/ 或 content/kb/<分栏>/
+#
+# ⚠️ 2026-10-26 变更：原凭据（github_pat_ 细粒度 PAT）已过期，
+#    改用 Git Credential Manager 存储的 OAuth 凭据。
+#    注意 Git 安装时 credential.helper 被设为 manager（GCM），
+#    而不是 store —— 所以 ~/.git-credentials 文件是空的，
+#    真正凭据在 Windows 凭据管理器（cmdkey / GCM）里。
+#    验证方式：`git credential fill` 能返回 password 即可。
 
 set -uo pipefail
 
@@ -49,13 +56,28 @@ fi
 
 # 4. 推送（走凭据管理器；GIT_TERMINAL_PROMPT=0 确保不阻塞等待输入）
 echo "[3/4] 推送..."
-export http_proxy="http://127.0.0.1:7897"
-export https_proxy="http://127.0.0.1:7897"
-if GIT_TERMINAL_PROMPT=0 git push origin "$BRANCH"; then
+# ⚠️ 代理不是必须的：实测 github.com 直连可通，代理 7897 反而偶发 000。
+#    只在直连失败时才回退到代理。
+push_once() {
+  GIT_TERMINAL_PROMPT=0 git push origin "$BRANCH" 2>&1
+}
+
+if PUSH_OUT=$(push_once); then
   echo "      推送成功"
 else
-  echo "错误：推送失败。请检查网络/代理与 git 凭据（~/.git-credentials）。"
-  exit 1
+  # 直连失败 → 带代理重试一次
+  echo "      直连失败，尝试代理 127.0.0.1:7897 ..."
+  if HTTP_PROXY="http://127.0.0.1:7897" HTTPS_PROXY="http://127.0.0.1:7897" \
+     GIT_TERMINAL_PROMPT=0 git push origin "$BRANCH" 2>&1; then
+    echo "      推送成功（经代理）"
+  else
+    echo "错误：推送失败。"
+    echo "  常见原因："
+    echo "    1. 凭据失效 —— 跑 'git credential fill' 看能否返回 password；"
+    echo "       不能的话重新登录：\"C:\\Program Files\\Git\\mingw64\\bin\\git-credential-manager.exe\" github login --browser"
+    echo "    2. 网络 —— 直连 github.com:443 不通时，确认代理软件在跑"
+    exit 1
+  fi
 fi
 
 # 5. 提示后续验证

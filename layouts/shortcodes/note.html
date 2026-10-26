@@ -1,0 +1,20 @@
+{{- /* ============================================================
+     提示框 shortcode
+     ------------------------------------------------------------
+     用法：
+       {{< note >}}普通补充说明{{< /note >}}
+       {{< note type="warn" title="注意" >}}这里容易写错的地方{{< /note >}}
+       {{< note type="quote" >}}引一段原文{{< /note >}}
+
+     type：info（默认，灰绿）/ warn（琥珀）/ quote（引用，斜体）
+     ============================================================ */ -}}
+
+{{- $type := .Get "type" | default "info" -}}
+{{- $title := .Get "title" -}}
+
+<div class="kb-note kb-note-{{ $type }}">
+  {{- with $title }}
+  <div class="kb-note-title">{{ . }}</div>
+  {{- end }}
+  <div class="kb-note-body">{{ .Inner | markdownify }}</div>
+</div>

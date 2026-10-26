@@ -1,0 +1,48 @@
+{{- /* ============================================================
+     参考资料 / 延伸阅读
+     ------------------------------------------------------------
+     用法：
+       {{< refs >}}
+       书名或文章名 | 作者 | 出版年
+       https://example.com | 站点名 | 访问日期
+       {{< /refs >}}
+
+     每行一条，| 分隔；缺项留空即可（如 `书名 | | 1998`）。
+     第一项以 http 开头时自动渲染成外链。
+     ============================================================ */ -}}
+
+{{- $raw := .Inner | strings.TrimSpace -}}
+{{- $items := slice -}}
+{{- range (split $raw "\n") -}}
+  {{- $line := . | strings.TrimSpace -}}
+  {{- if and $line (not (hasPrefix $line "#")) -}}
+    {{- $parts := split $line "|" -}}
+    {{- $items = $items | append (dict
+        "t" (index $parts 0 | strings.TrimSpace)
+        "a" (cond (ge (len $parts) 2) (index $parts 1 | strings.TrimSpace) "")
+        "y" (cond (ge (len $parts) 3) (index $parts 2 | strings.TrimSpace) "")
+      ) -}}
+  {{- end -}}
+{{- end -}}
+
+{{- with $items }}
+<section class="kb-refs">
+  <div class="kb-refs-head">
+    <span class="kb-refs-label">REFERENCES</span>
+    <span class="kb-refs-title">{{ $.Get "title" | default "参考资料" }}</span>
+  </div>
+  <ol class="kb-refs-list">
+    {{- range . }}
+    <li>
+      {{- if hasPrefix .t "http" }}
+      <a href="{{ .t }}" target="_blank" rel="noopener noreferrer">{{ .t }}</a>
+      {{- else }}
+      <span class="kb-ref-name">{{ .t }}</span>
+      {{- end }}
+      {{- with .a }}<span class="kb-ref-author">{{ . }}</span>{{ end }}
+      {{- with .y }}<span class="kb-ref-year">{{ . }}</span>{{ end }}
+    </li>
+    {{- end }}
+  </ol>
+</section>
+{{- end -}}
