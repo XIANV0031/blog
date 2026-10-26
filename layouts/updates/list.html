@@ -1,0 +1,67 @@
+{{- define "main" }}
+
+{{- /* ============================================================
+     更新列表（/updates/）—— 全站文章时间线
+     ------------------------------------------------------------
+     为什么单独写这个模板：
+       本栏目没有自己的文章（content/updates/ 下只有 _index.md），
+       若用主题默认 list.html，只会渲染 .RegularPages —— 空的，
+       页面上只有一句介绍文字，没有任何链接。用户反馈「更新列表没链接呢？」
+
+     做法：汇总全站所有正式文章（content/gear/ + content/posts/），
+          按日期倒序排成一条时间线，每条带链接。
+
+     ⚠️ 排除项：
+       · _index.md 这类栏目页本身（.Kind != "page"）
+       · drafts 草稿
+       · updates 自己（避免自引用）
+     ============================================================ */ -}}
+
+{{- $pages := where site.RegularPages "Type" "in" (slice "gear" "posts") -}}
+{{- $pages = where $pages "Draft" "!=" true -}}
+{{- $pages = $pages.ByDate.Reverse -}}
+
+<header class="page-header">
+  {{- partial "breadcrumbs.html" . }}
+  <h1>{{ .Title }}</h1>
+  {{- with .Description }}
+  <div class="post-description">{{ . }}</div>
+  {{- end }}
+</header>
+
+{{- with .Content }}
+<div class="updates-intro md-content">{{ . }}</div>
+{{- end }}
+
+{{- if $pages }}
+<div class="updates-meta">
+  <span class="updates-count">{{ len $pages }} 篇</span>
+  {{- with index $pages 0 }}
+  <span class="updates-latest">最近更新 {{ .Date.Format "2006-01-02" }}</span>
+  {{- end }}
+</div>
+
+<ol class="updates-list">
+  {{- range $pages }}
+  <li class="updates-item">
+    <a href="{{ .RelPermalink }}">
+      <span class="updates-date">{{ .Date.Format "2006-01-02" }}</span>
+      <span class="updates-main">
+        <span class="updates-title">{{ .Title }}</span>
+        {{- with (.Params.summary | default .Description | default .Summary) }}
+        <span class="updates-desc">{{ . | plainify | truncate 80 }}</span>
+        {{- end }}
+      </span>
+      <span class="updates-side">
+        {{- with .Parent }}{{ if ne .Title "更新列表" }}<span class="updates-col">{{ .Title }}</span>{{ end }}{{ end }}
+        {{- with .Params.tags }}{{ if gt (len .) 0 }}<span class="updates-tag">{{ index . 0 }}</span>{{ end }}{{ end }}
+      </span>
+    </a>
+  </li>
+  {{- end }}
+</ol>
+{{- else }}
+<p class="updates-empty">还没有文章。</p>
+{{- end }}
+
+{{- end }}{{/* end main */}}
