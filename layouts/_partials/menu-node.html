@@ -1,0 +1,45 @@
+{{- /* ============================================================
+     菜单节点递归渲染（多级下拉）
+     ------------------------------------------------------------
+     PaperMod 原生不支持嵌套菜单，主题的 header.html 只遍历
+     site.Menus.main 的顶层项，parent 字段被完全忽略。
+     这里按 .Children 递归渲染任意层级。
+
+     调用方式（在 header.html 里）：
+       {{ partial "menu-node.html" (dict "item" $menuItem "cur" $currentPage) }}
+
+     ⚠️ 坑：不能在 header.html 内部用 {{ define }} + partial "header" 自调用——
+        那会重新执行整个 header 模板（包括它自己的菜单循环），
+        直接栈溢出 "maximum template call stack size exceeded"。
+        必须单独成文件。
+     ============================================================ */ -}}
+
+{{- $item := .item -}}
+{{- $cur := .cur -}}
+{{- $url := $item.URL | absLangURL -}}
+{{- $curUrl := $cur.Permalink | absLangURL -}}
+{{- $isActive := eq $curUrl $url -}}
+{{- $hasChildren := gt (len $item.Children) 0 -}}
+
+{{- /* 父级高亮：当前页在子孙项里时，父项也点亮 */ -}}
+{{- if and $hasChildren (not $isActive) -}}
+  {{- range $item.Children -}}
+    {{- if or (eq $curUrl (.URL | absLangURL)) (and .URL (hasPrefix $cur.RelPermalink .URL)) -}}
+      {{- $isActive = true -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+<li{{ if $hasChildren }} class="has-submenu"{{ end }}>
+  <a href="{{ $url }}" title="{{ $item.Title | default $item.Name }}">
+    <span{{ if $isActive }} class="active"{{ end }}>{{ $item.Pre }}{{ $item.Name }}{{ $item.Post }}</span>
+    {{- if $hasChildren }}<span class="submenu-caret" aria-hidden="true">▾</span>{{ end }}
+  </a>
+  {{- if $hasChildren }}
+  <ul class="submenu">
+    {{- range $item.Children }}
+      {{- partial "menu-node.html" (dict "item" . "cur" $cur) }}
+    {{- end }}
+  </ul>
+  {{- end }}
+</li>

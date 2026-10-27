@@ -1,31 +1,63 @@
 {{- define "main" }}
 
 {{- /* ============================================================
-     单兵装备（/gear/）—— 分栏列表页
+     分栏列表页（通用，适用于 gear 及其所有下级分栏）
      ------------------------------------------------------------
-     ⚠️ 关键：卡片必须用 class="post-entry"（和情报站文章卡片同一个类名）
-     ------------------------------------------------------------
-     站点的卡片动效全部绑定在 .post-entry 上：
-       · tactical.css 第 5 节        —— 斜角嵌板、左侧色条、右上铆钉
-       · tactical-motion.css 第 5 节 —— hover 五层动画（扫描条 / 斜向光泽 /
-                                        边框辉光 / 标题位移 / 摘要提亮）
-       · tactical-motion.css 第 3 节 —— 入场动画
-       · tactical-cover.css          —— 封面缩放与题注铭牌
+     2026-10-27 升级：支持「子栏目 + 文章」混合展示。
 
-     用 .post-entry 就自动继承这一整套；换成自定义类名（如 .kb-card），
-     动效会全部静默消失 —— 这就是之前「差距一眼看出来」的原因。
+     背景：单兵装备下分了 单兵服装 → {国家, 特辑, 公司} → 国家 → 美国
+           → 作战服 这样的多层结构。原模板只渲染 .RegularPages，
+           导致「单兵服装」这种只有子栏目、没有直属文章的页面
+           显示"这一栏还没写东西"，用户根本点不进下级。
 
-     分页也沿用主题的 .page-footer / .pagination 结构。
+     现在的逻辑：
+       1. 有子栏目 → 先列子栏目卡片（可点进去）
+       2. 有文章   → 再列文章卡片
+       3. 两者都空 → 才显示"还没写东西"
+
+     ⚠️ 卡片类名必须用 .post-entry —— 站点的斜角嵌板 + hover 五层动画
+        全绑在这个类名上，换类名动效会静默消失。
      ============================================================ */ -}}
 
+{{- $subs := .Sections.ByTitle -}}
 {{- $pages := .RegularPages.ByDate.Reverse -}}
 
 {{- if .Content }}
 <div class="gear-intro md-content">{{ .Content }}</div>
 {{- end }}
 
-{{- if $pages }}
-{{- $paginator := .Paginate $pages 10 }}
+{{- /* ---------- 1. 子栏目 ---------- */ -}}
+{{- with $subs }}
+<section class="sub-sections">
+  <h2 class="sub-sections-title">下级分类</h2>
+  <div class="sub-sections-grid">
+    {{- range . }}
+    {{- $count := len .RegularPages }}
+    {{- $childCount := len .Sections }}
+    <a class="post-entry sub-section-card" href="{{ .RelPermalink }}">
+      <header class="entry-header">
+        <h2 class="entry-hint-parent">{{ .Title }}</h2>
+      </header>
+      <div class="entry-content">
+        <p>{{ with .Description }}{{ . }}{{ else }}{{ .Summary | plainify }}{{ end }}</p>
+      </div>
+      <footer class="entry-footer">
+        <span class="sub-section-meta">
+          {{- if $childCount }}{{ $childCount }} 个分类{{ end }}
+          {{- if and $childCount $count }} · {{ end }}
+          {{- if $count }}{{ $count }} 篇{{ end }}
+        </span>
+      </footer>
+    </a>
+    {{- end }}
+  </div>
+</section>
+{{- end }}
+
+{{- /* ---------- 2. 文章 ---------- */ -}}
+{{- with $pages }}
+{{- if $subs }}<h2 class="sub-sections-title articles-title">文章</h2>{{ end }}
+{{- $paginator := $.Paginate . 10 }}
 {{- range $paginator.Pages }}
 
 {{- $isHidden := (.Param "cover.hiddenInList") | default (.Param "cover.hidden") | default false }}
@@ -61,8 +93,10 @@
   </nav>
 </footer>
 {{- end }}
+{{- end }}
 
-{{- else }}
+{{- /* ---------- 3. 全空 ---------- */ -}}
+{{- if and (not $subs) (not $pages) }}
 <p class="gear-empty">这一栏还没写东西。等想写了再填。</p>
 {{- end }}
 

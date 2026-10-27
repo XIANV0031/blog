@@ -177,3 +177,12 @@
        ⚠️ 放在 <main> 之外（footer 内）是刻意的：这样它的 DOM 位置
           不会被自己发起的替换影响。 */ -}}
 <script src="{{ "js/tac-pjax.js" | relURL }}"></script>
+
+{{- /* ---------- 多级下拉菜单交互（移动端点击展开）---------- */ -}}
+{{- /* 见 static/js/menu-dropdown.js
+       桌面端纯 CSS :hover 展开，此脚本只处理：
+         1. 窄屏（<=768px）点父项展开而非跳转
+         2. 点空白 / Esc 收起
+       ⚠️ 放在 PJAX 之后：菜单在 <main> 之外，PJAX 换页不影响它，
+          但脚本需在 DOM 就绪后绑定，放最后最稳。 */ -}}
+<script src="{{ "js/menu-dropdown.js" | relURL }}"></script>

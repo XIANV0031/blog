@@ -255,3 +255,100 @@
   .updates-date { min-width: auto; }
   .updates-side { width: 100%; justify-content: flex-end; }
 }
+/* ============ 下级分类卡片（多层分栏） ============ */
+/* 用于 单兵装备 → 单兵服装 → 国家/特辑/公司 这类层级页。
+   卡片仍复用 .post-entry，继承斜角嵌板与 hover 动效。 */
+
+.sub-sections {
+  margin: 0 0 1.8rem;
+}
+
+.sub-sections-title {
+  font-family: var(--font-mono) !important;
+  font-size: 0.82rem !important;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sand-400) !important;
+  margin: 0 0 0.8rem !important;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid rgba(74, 90, 74, 0.4);
+  position: relative;
+}
+
+.sub-sections-title::before {
+  content: '▮';
+  color: var(--amber);
+  margin-right: 0.45rem;
+  font-size: 0.75em;
+}
+
+.sub-sections-title.articles-title {
+  margin-top: 1.6rem !important;
+}
+
+.sub-sections-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.8rem;
+}
+
+/* 子栏目卡片：比文章卡片矮一些，信息更精简 */
+.post-entry.sub-section-card {
+  display: flex;
+  flex-direction: column;
+  padding: 0.9rem 1.1rem 0.75rem !important;
+  margin-bottom: 0 !important;
+  text-decoration: none !important;
+}
+
+.post-entry.sub-section-card .entry-header {
+  margin-bottom: 0.3rem;
+}
+
+.post-entry.sub-section-card .entry-header h2 {
+  font-size: 0.95rem !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: none !important;
+  border-left: none !important;
+}
+
+.post-entry.sub-section-card .entry-header h2::before {
+  display: none;
+}
+
+.post-entry.sub-section-card .entry-content {
+  flex: 1;
+}
+
+.post-entry.sub-section-card .entry-content p {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--text-dim);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.post-entry.sub-section-card .entry-footer {
+  margin-top: 0.5rem;
+  padding-top: 0.45rem;
+  border-top: 1px dotted rgba(74, 90, 74, 0.4);
+}
+
+.sub-section-meta {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  color: var(--sand-400);
+  opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+  .sub-sections-grid {
+    grid-template-columns: 1fr;
+  }
+}

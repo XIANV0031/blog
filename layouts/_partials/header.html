@@ -85,51 +85,29 @@
             {{- end }}
         </div>
         {{- $currentPage := . }}
+        {{- /* ============================================================
+             多级下拉菜单（2026-10-27 新增）
+             ------------------------------------------------------------
+             PaperMod 原生不支持嵌套菜单，主题只遍历 site.Menus.main 的
+             顶层项，parent 字段被完全忽略。
+
+             层级结构来自 hugo.toml：
+               单兵装备
+                 └ 单兵服装
+                     ├ 国家 → 美国 → 作战服
+                     ├ 特辑
+                     └ 公司
+
+             ⚠️ 递归逻辑在单独的 _partials/menu-node.html 里。
+                不能在本文件内 define + partial "header" 自调用 ——
+                那会重跑整个 header 模板，直接栈溢出。
+             ============================================================ */ -}}
+
         <ul id="menu" class="menu">
             {{- range site.Menus.main }}
-            {{- $menu_item_url := (cond (strings.HasSuffix .URL "/") .URL (printf "%s/" .URL) ) | absLangURL }}
-            {{- $page_url:= $currentPage.Permalink | absLangURL }}
-            {{- /* ------------------------------------------------------------------
-                 覆盖主题 header.html 的唯一改动（2026-10-26）
-                 ------------------------------------------------------------------
-                 主题原版：`$is_search := eq (site.GetPage .KeyName).Layout \`search\``
-
-                 问题：`site.GetPage` 按名字解析页面，而名字在 Hugo 里**不唯一**——
-                 分类/标签/栏目只要重名就会报 "page reference XXX is ambiguous"
-                 并直接中止整站构建（不是警告，是 ERROR）。
-
-                 本站踩到：菜单项叫「单兵装备」，文章 categories 也叫「单兵装备」，
-                 于是 site.GetPage "单兵装备" 同时匹配 /gear/ 和 /categories/单兵装备/，
-                 全站构建失败。
-
-                 修法：不去猜 .KeyName 指向哪个页面，改用菜单项的 URL 精确取页面。
-                 URL 是唯一的（/gear/ vs /categories/单兵装备/），不会歧义；
-                 且 with 包裹保证取不到页面时 $is_search 为 false，不会因 nil 崩。
-                 ------------------------------------------------------------------ */ -}}
-            {{- $is_search := false }}
-            {{- with .URL }}
-              {{- with site.GetPage . }}
-                {{- $is_search = eq .Layout `search` }}
-              {{- end }}
+            {{- if not .Parent }}
+              {{- partial "menu-node.html" (dict "item" . "cur" $currentPage) }}
             {{- end }}
-            <li>
-                <a href="{{ .URL | absLangURL }}" title="{{ .Title | default .Name }} {{- cond $is_search (" (Alt + /)" | safeHTMLAttr) ("" | safeHTMLAttr ) }}"
-                {{- cond $is_search (" accesskey=/" | safeHTMLAttr) ("" | safeHTMLAttr ) }}>
-                    <span {{- if eq $menu_item_url $page_url }} class="active" {{- end }}>
-                        {{- .Pre }}
-                        {{- .Name -}}
-                        {{ .Post -}}
-                    </span>
-                    {{- if (findRE "://" .URL) }}&nbsp;
-                    <svg fill="none" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round"
-                        stroke-linejoin="round" stroke-width="2.5" viewBox="0 0 24 24" height="12" width="12">
-                        <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"></path>
-                        <path d="M15 3h6v6"></path>
-                        <path d="M10 14L21 3"></path>
-                    </svg>
-                    {{- end }}
-                </a>
-            </li>
             {{- end }}
         </ul>
     </nav>

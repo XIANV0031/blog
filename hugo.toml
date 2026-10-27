@@ -73,6 +73,37 @@ buildFuture = true
     name = '单兵装备'
     url = '/gear/'
     weight = 30
+    # 下拉子项（PaperMod 原生不支持嵌套菜单，由 layouts/_partials/header.html 自行渲染）
+    [[menu.main]]
+      name = '单兵服装'
+      url = '/gear/uniform/'
+      weight = 31
+      parent = '单兵装备'
+      [[menu.main]]
+        name = '国家'
+        url = '/gear/uniform/nation/'
+        weight = 311
+        parent = '单兵服装'
+        [[menu.main]]
+          name = '美国'
+          url = '/gear/uniform/nation/usa/'
+          weight = 3111
+          parent = '国家'
+          [[menu.main]]
+            name = '作战服'
+            url = '/gear/uniform/nation/usa/combat/'
+            weight = 31111
+            parent = '美国'
+      [[menu.main]]
+        name = '特辑'
+        url = '/gear/uniform/special/'
+        weight = 312
+        parent = '单兵服装'
+      [[menu.main]]
+        name = '公司'
+        url = '/gear/uniform/company/'
+        weight = 313
+        parent = '单兵服装'
   [[menu.main]]
     name = '本站说明及联系方式'
     url = '/about/'
