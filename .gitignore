@@ -7,12 +7,10 @@ resources/_gen/
 .cache/
 
 # 本地预览产物（临时，不提交）
-public-preview/
-public-preview-kb/
-public-preview-gear/
-public-preview-ocp/
-public-preview-upd/
-public-preview-menu/
+# ⚠️ 统一用通配符，避免每建一个预览目录就要手动加一行
+#    （2026-10-27 就因漏加 public-preview-logo 导致 255 个构建产物被误提交）
+public-preview*/
+public/
 
 # 系统文件
 .DS_Store

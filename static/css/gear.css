@@ -352,3 +352,34 @@
     grid-template-columns: 1fr;
   }
 }
+/* ============ 站点徽标（导航栏左上角） ============ */
+/* 由 hugo.toml 的 [params.label] icon/iconHeight 驱动，主题原生渲染 <img>。
+   这里只做视觉微调：圆角裁切 + 细边框 + 轻微辉光，与战术皮肤统一。 */
+
+.logo a img {
+  width: auto;
+  height: 30px;
+  border-radius: 3px;
+  border: 1px solid var(--metal-edge);
+  box-shadow:
+    0 0 0 1px rgba(217, 164, 65, 0.12),
+    0 1px 6px rgba(0, 0, 0, 0.45);
+  object-fit: cover;
+  flex-shrink: 0;
+  transition: box-shadow 0.3s var(--ease-out), border-color 0.3s var(--ease-out);
+}
+
+.logo a:hover img {
+  border-color: var(--amber-dim);
+  box-shadow:
+    0 0 0 1px rgba(217, 164, 65, 0.3),
+    0 0 12px rgba(217, 164, 65, 0.18),
+    0 1px 6px rgba(0, 0, 0, 0.45);
+}
+
+/* 窄屏缩小一点，避免挤占站名 */
+@media (max-width: 768px) {
+  .logo a img {
+    height: 24px;
+  }
+}

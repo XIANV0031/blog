@@ -60,6 +60,11 @@ buildFuture = true
     loading = 'lazy'
 
 
+  # 站点徽标：显示在导航栏站名左侧（主题原生支持 params.label.icon）
+  [params.label]
+    icon = "images/brand/logo-128.png"
+    iconHeight = 30
+
 [menu]
   [[menu.main]]
     name = '首页'
@@ -69,8 +74,14 @@ buildFuture = true
     name = '更新列表'
     url = '/updates/'
     weight = 20
+    # 归档区挂在「更新列表」下面，不占顶层位置
+    [[menu.main]]
+      name = 'Wargame 归档'
+      url = '/wargame/'
+      weight = 21
+      parent = '更新列表'
   [[menu.main]]
-    name = '单兵装备'
+    name = '装备资料'
     url = '/gear/'
     weight = 30
     # 下拉子项（PaperMod 原生不支持嵌套菜单，由 layouts/_partials/header.html 自行渲染）
@@ -78,7 +89,7 @@ buildFuture = true
       name = '单兵服装'
       url = '/gear/uniform/'
       weight = 31
-      parent = '单兵装备'
+      parent = '装备资料'
       [[menu.main]]
         name = '国家'
         url = '/gear/uniform/nation/'

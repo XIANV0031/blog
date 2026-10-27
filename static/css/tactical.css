@@ -158,12 +158,20 @@ body::after {
   font-weight: 700;
 }
 
+/* ⚠️ 2026-10-27：加了真实徽标图后，这个 ▮ 方块与徽标重复，
+   两者并排会显得拥挤。改为「有徽标时不显示 ▮」——
+   用 :has() 检测，现代浏览器支持；不支持的浏览器会继续显示 ▮，
+   属于可接受的降级。 */
 .logo a::before {
   content: '▮';
   color: var(--amber);
   opacity: 0.85;
   margin-right: 0.5rem;
   display: inline-block;
+}
+
+.logo a:has(img)::before {
+  display: none;
 }
 
 /* 标题与主题切换按钮之间留出间距，避免 ▮ 与按钮视觉粘连 */
