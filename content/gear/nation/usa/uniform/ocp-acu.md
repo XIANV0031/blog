@@ -4,7 +4,7 @@ date: 2026-10-26T21:00:00+08:00
 draft: false
 tags: ["OCP", "ACU", "MultiCam", "UCP", "Scorpion", "迷彩", "美国陆军", "单兵装备"]
 categories: ["单兵装备"]
-aliases: ["/gear/ocp-acu/"]
+aliases: ["/gear/ocp-acu/", "/gear/uniform/nation/usa/combat/ocp-acu/"]
 cover:
   image: "images/posts/ocp-acu/fig01-ocp-acu-set.jpg"
   alt: "OCP 图案 ACU 整套实物"

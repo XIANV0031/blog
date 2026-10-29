@@ -82,39 +82,48 @@ buildFuture = true
       parent = '更新列表'
   [[menu.main]]
     name = '装备资料'
+    identifier = 'gear'
     url = '/gear/'
     weight = 30
     # 下拉子项（PaperMod 原生不支持嵌套菜单，由 layouts/_partials/header.html 自行渲染）
+    # ⚠️ 每个分栏下都有一套「国家 → 美国 → 服装/护具」，菜单项重名会让
+    #    Hugo 按名字匹配 parent 时挂错分支，所以一律用唯一 identifier。
     [[menu.main]]
-      name = '单兵服装'
-      url = '/gear/uniform/'
+      name = '国家'
+      identifier = 'nation'
+      url = '/gear/nation/'
       weight = 31
-      parent = '装备资料'
+      parent = 'gear'
       [[menu.main]]
-        name = '国家'
-        url = '/gear/uniform/nation/'
+        name = '美国'
+        identifier = 'nation-usa'
+        url = '/gear/nation/usa/'
         weight = 311
-        parent = '单兵服装'
+        parent = 'nation'
         [[menu.main]]
-          name = '美国'
-          url = '/gear/uniform/nation/usa/'
+          name = '服装'
+          identifier = 'nation-usa-uniform'
+          url = '/gear/nation/usa/uniform/'
           weight = 3111
-          parent = '国家'
-          [[menu.main]]
-            name = '作战服'
-            url = '/gear/uniform/nation/usa/combat/'
-            weight = 31111
-            parent = '美国'
-      [[menu.main]]
-        name = '特辑'
-        url = '/gear/uniform/special/'
-        weight = 312
-        parent = '单兵服装'
-      [[menu.main]]
-        name = '公司'
-        url = '/gear/uniform/company/'
-        weight = 313
-        parent = '单兵服装'
+          parent = 'nation-usa'
+        [[menu.main]]
+          name = '护具'
+          identifier = 'nation-usa-headgear'
+          url = '/gear/nation/usa/headgear/'
+          weight = 3112
+          parent = 'nation-usa'
+    [[menu.main]]
+      name = '特辑'
+      identifier = 'special'
+      url = '/gear/special/'
+      weight = 32
+      parent = 'gear'
+    [[menu.main]]
+      name = '公司'
+      identifier = 'company'
+      url = '/gear/company/'
+      weight = 33
+      parent = 'gear'
   [[menu.main]]
     name = '本站说明及联系方式'
     url = '/about/'
